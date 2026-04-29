@@ -1,0 +1,45 @@
+export const dynamic = "force-dynamic";
+
+import type { NextRequest } from "next/server";
+import { prisma } from "@/server/prisma";
+import { requireAuth } from "@/server/auth";
+import { getPagination } from "@/server/pagination";
+import { ok, paginated, handleRouteError } from "@/server/responses";
+import { parseJson } from "@/server/route-utils";
+import { storySchema } from "@/server/validators";
+
+export async function GET(request: NextRequest) {
+  try {
+    const page = getPagination(request.nextUrl.searchParams);
+    const stories = await prisma.story.findMany({
+      where: { expiresAt: { gt: new Date() } },
+      skip: page.skip,
+      take: page.take,
+      include: { author: { select: { id: true, name: true, username: true, avatarUrl: true } }, _count: { select: { likes: true, views: true } } },
+      orderBy: { createdAt: "desc" }
+    });
+    return paginated(stories, page);
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await requireAuth(request);
+    const input = await parseJson(request, storySchema);
+    const story = await prisma.story.create({
+      data: {
+        authorId: auth.id,
+        url: input.url,
+        type: input.type,
+        caption: input.caption,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      }
+    });
+    return ok({ story }, { status: 201 });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+

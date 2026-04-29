@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "PawPals API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "token", "value": "" },
+    { "key": "catId", "value": "" },
+    { "key": "postId", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "vetId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Maya\",\n  \"username\": \"maya_cat\",\n  \"email\": \"maya@example.com\",\n  \"password\": \"password123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"maya@example.com\",\n  \"password\": \"password123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create Cat",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/cats",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Luna\",\n  \"ageMonths\": 24,\n  \"gender\": \"FEMALE\",\n  \"breed\": \"Persian\",\n  \"personalityTags\": [\"Calm\", \"Friendly\"],\n  \"lookingFor\": [\"Playdate\"],\n  \"city\": \"New York\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Swipe Cat",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/discover/swipes",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"catId\": \"{{catId}}\",\n  \"action\": \"LIKE\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create Post",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/posts",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Hydration tips for summer?\",\n  \"topic\": \"HEALTH\",\n  \"mediaUrls\": []\n}"
+        }
+      }
+    },
+    {
+      "name": "Like Post",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/posts/{{postId}}/like"
+      }
+    },
+    {
+      "name": "Search Vets",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/vets?city=New%20York&open=true&service=CHECKUP"
+      }
+    },
+    {
+      "name": "RSVP Event",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/events/{{eventId}}/rsvp"
+      }
+    },
+    {
+      "name": "Daily Health Tip",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health-tips/daily"
+      }
+    }
+  ]
+}
