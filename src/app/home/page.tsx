@@ -58,23 +58,24 @@ export default function HomePage() {
       </section>
 
       <section className="mb-6 grid grid-cols-2 gap-3">
-        {quickActions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link
-              key={action.title}
-              href={action.href}
-              className={`flex min-h-20 items-center gap-3 rounded-2xl p-4 shadow-soft ${action.color}`}
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/55 text-paw-lavender">
-                <Icon size={22} />
-              </span>
-              <span className="text-sm font-black leading-tight text-paw-ink">
-                {action.title}
-              </span>
-            </Link>
-          );
-        })}
+        {quickActions.map((action) => (
+          <Link
+            key={action.title}
+            href={action.href}
+            className={`flex min-h-20 items-center gap-3 rounded-2xl p-4 shadow-soft ${action.color}`}
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/55">
+              <img
+                src={action.icon}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+            </span>
+            <span className="text-sm font-black leading-tight text-paw-ink">
+              {action.title}
+            </span>
+          </Link>
+        ))}
       </section>
 
       <div className="mb-3 flex items-center justify-between">

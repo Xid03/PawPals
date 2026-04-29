@@ -1,17 +1,18 @@
 import {
   Bell,
   Bookmark,
-  CalendarDays,
-  HeartPulse,
   Hospital,
   PawPrint,
   ShieldPlus,
-  Sparkles,
   Stethoscope,
   Syringe,
   Utensils,
   Users
 } from "lucide-react";
+import eventIcon from "../../images/eventIcon.png";
+import storiesIcon from "../../images/storiesIcon.png";
+import tipIcon from "../../images/tipIcon.png";
+import vetIcon from "../../images/vetIcon.png";
 
 export const currentUser = {
   name: "WhiskersMom",
@@ -87,25 +88,25 @@ export const quickActions = [
   {
     title: "Health Tips",
     href: "/community",
-    icon: HeartPulse,
+    icon: tipIcon.src,
     color: "bg-paw-butter"
   },
   {
     title: "Stories & Memes",
     href: "/stories",
-    icon: Sparkles,
+    icon: storiesIcon.src,
     color: "bg-paw-blush"
   },
   {
     title: "Vet Directory",
     href: "/vets",
-    icon: ShieldPlus,
+    icon: vetIcon.src,
     color: "bg-paw-lilac"
   },
   {
     title: "Events",
     href: "/community",
-    icon: CalendarDays,
+    icon: eventIcon.src,
     color: "bg-[#FFE0C5]"
   }
 ];

@@ -1,37 +1,53 @@
-import { Cat, Heart, PawPrint } from "lucide-react";
+import { Heart, PawPrint } from "lucide-react";
 import { CatMascot } from "@/components/CatMascot";
 import { PawPalsLogo } from "@/components/PawPalsLogo";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 export default function OnboardingPage() {
   return (
-    <section className="relative flex min-h-screen flex-col justify-between overflow-hidden bg-paw-radial px-6 pb-8 pt-14">
-      <PawPrint className="absolute right-8 top-28 text-paw-peach" size={28} />
-      <Heart className="absolute left-10 top-56 fill-paw-rose text-paw-rose" size={24} />
-      <Heart className="absolute right-12 top-64 fill-paw-rose/60 text-paw-rose/60" size={20} />
+    <section className="relative min-h-screen overflow-hidden bg-paw-radial">
+      <div className="relative mx-auto min-h-screen w-full max-w-[284px] px-0 pb-[58px] pt-[58px]">
+        <PawPrint className="absolute right-[20px] top-[187px] text-paw-peach" size={24} />
+        <Heart className="absolute left-[30px] top-[220px] fill-paw-rose text-paw-rose" size={28} />
+        <Heart className="absolute right-[38px] top-[236px] fill-paw-rose/60 text-paw-rose/60" size={20} />
 
-      <div className="text-center">
-        <div className="flex justify-center">
-          <PawPalsLogo />
+        <div className="text-center">
+          <div className="flex justify-center">
+            <PawPalsLogo />
+          </div>
+          <p className="mx-auto mt-[10px] max-w-[170px] text-[15px] font-extrabold leading-[22px] text-paw-cocoa">
+            A cozy community for you and your cat
+          </p>
         </div>
-        <p className="mx-auto mt-6 max-w-52 text-base font-extrabold leading-relaxed text-paw-cocoa">
-          A cozy community for you and your cat
-        </p>
-      </div>
 
-      <div className="relative">
-        <CatMascot />
-        <div className="absolute -bottom-6 -right-10 h-28 w-48 rounded-t-full bg-white/45" />
-      </div>
+        <div className="relative mt-[58px]">
+          <CatMascot />
+          <div className="absolute -bottom-[2px] -right-[58px] h-[78px] w-[210px] rounded-t-full bg-white/45" />
+        </div>
 
-      <div className="space-y-3">
-        <PrimaryButton href="/auth?mode=signup">Create Account</PrimaryButton>
-        <PrimaryButton href="/auth?mode=login" variant="secondary" icon={<Cat size={18} />}>
-          Log In
-        </PrimaryButton>
-        <PrimaryButton href="/home" variant="ghost" icon={<PawPrint size={17} />}>
-          Continue as Guest
-        </PrimaryButton>
+        <div className="mt-[46px] space-y-[13px]">
+          <PrimaryButton
+            href="/auth?mode=signup"
+            className="mx-auto min-h-0 h-[46px] w-[232px] rounded-[18px] text-[14px]"
+          >
+            Create Account
+          </PrimaryButton>
+          <PrimaryButton
+            href="/auth?mode=login"
+            variant="secondary"
+            className="mx-auto min-h-0 h-[43px] w-[232px] rounded-[18px] text-[14px]"
+          >
+            Log In
+          </PrimaryButton>
+          <PrimaryButton
+            href="/home"
+            variant="ghost"
+            className="mx-auto min-h-0 h-[38px] w-[232px] rounded-[18px] text-[13px]"
+            icon={<PawPrint size={15} />}
+          >
+            Continue as Guest
+          </PrimaryButton>
+        </div>
       </div>
     </section>
   );

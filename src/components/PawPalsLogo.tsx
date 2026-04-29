@@ -1,11 +1,23 @@
 import logoImage from "../../images/logo.png";
 
-export function PawPalsLogo({ compact = false }: { compact?: boolean }) {
+export function PawPalsLogo({
+  compact = false,
+  className = ""
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   return (
-    <img
-      src={logoImage.src}
-      alt="PawPals"
-      className={`object-contain ${compact ? "h-9 w-28" : "h-24 w-64"}`}
-    />
+    <span
+      className={`block overflow-hidden ${
+        compact ? "h-9 w-28" : "h-[82px] w-[224px]"
+      } ${className}`}
+    >
+      <img
+        src={logoImage.src}
+        alt="PawPals"
+        className="h-full w-full object-cover object-center"
+      />
+    </span>
   );
 }
