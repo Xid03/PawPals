@@ -1,7 +1,6 @@
 import {
   Bell,
   Bookmark,
-  Brush,
   Hospital,
   PawPrint,
   ShieldPlus,
@@ -10,7 +9,10 @@ import {
   Utensils,
   Users
 } from "lucide-react";
+import behaviourIcon from "../../images/behaviourIcon.png";
 import eventIcon from "../../images/eventIcon.png";
+import groomingIcon from "../../images/groomingIcon.png";
+import healthyIcon from "../../images/healthyIcon.png";
 import storiesIcon from "../../images/storiesIcon.png";
 import tipIcon from "../../images/tipIcon.png";
 import vetIcon from "../../images/vetIcon.png";
@@ -155,26 +157,26 @@ export const healthTipCategories = [
   {
     title: "Healthy Nutrition",
     description: "Learn what foods are safe and healthy for your cat.",
-    icon: Utensils,
-    color: "bg-[#DFF4C7] text-emerald-600"
+    icon: healthyIcon.src,
+    color: "bg-[#DFF4C7]"
   },
   {
     title: "Grooming Essentials",
     description: "Tips for brushing, bathing, and keeping your cat clean.",
-    icon: Brush,
-    color: "bg-paw-lilac text-paw-lavender"
+    icon: groomingIcon.src,
+    color: "bg-paw-lilac"
   },
   {
     title: "Understanding Behavior",
     description: "Decode your cat's body language and behaviors.",
-    icon: PawPrint,
-    color: "bg-paw-blush text-paw-pink"
+    icon: behaviourIcon.src,
+    color: "bg-paw-blush"
   },
   {
     title: "Preventive Care",
     description: "Vaccinations, regular checkups, and parasite prevention.",
-    icon: Hospital,
-    color: "bg-[#DDECFF] text-blue-600"
+    icon: vetIcon.src,
+    color: "bg-[#DDECFF]"
   }
 ];
 

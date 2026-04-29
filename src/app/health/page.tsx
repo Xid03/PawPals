@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ChevronRight, Lightbulb, PawPrint, Search, Sparkles } from "lucide-react";
+import { ChevronRight, PawPrint, Search, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { TagChip } from "@/components/TagChip";
 import { healthTipCategories } from "@/data/mockData";
+import catDoctorImage from "../../../images/catDoctor.png";
 import homepageImage from "../../../images/homepage.png";
 import tipIcon from "../../../images/tipIcon.png";
 
@@ -77,33 +78,34 @@ export default function HealthTipsPage() {
 
       <h2 className="mb-3 text-[21px] font-black">Explore Tips</h2>
       <section className="paw-card overflow-hidden rounded-[20px]">
-        {healthTipCategories.map((tip, index) => {
-          const Icon = tip.icon;
-          return (
-            <Link
-              key={tip.title}
-              href="/community"
-              className={`flex items-center gap-4 p-4 ${
-                index !== healthTipCategories.length - 1
-                  ? "border-b border-paw-cocoa/10"
-                  : ""
-              }`}
-            >
-              <span className={`grid h-[58px] w-[58px] shrink-0 place-items-center rounded-2xl ${tip.color}`}>
-                <Icon size={28} />
+        {healthTipCategories.map((tip, index) => (
+          <Link
+            key={tip.title}
+            href="/community"
+            className={`flex items-center gap-4 p-4 ${
+              index !== healthTipCategories.length - 1
+                ? "border-b border-paw-cocoa/10"
+                : ""
+            }`}
+          >
+            <span className={`grid h-[58px] w-[58px] shrink-0 place-items-center overflow-hidden rounded-2xl ${tip.color}`}>
+              <img
+                src={tip.icon}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-lg font-black leading-tight text-paw-ink">
+                {tip.title}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-lg font-black leading-tight text-paw-ink">
-                  {tip.title}
-                </span>
-                <span className="mt-1 block text-sm font-extrabold leading-snug text-paw-cocoa/75">
-                  {tip.description}
-                </span>
+              <span className="mt-1 block text-sm font-extrabold leading-snug text-paw-cocoa/75">
+                {tip.description}
               </span>
-              <ChevronRight size={25} className="text-paw-cocoa/70" />
-            </Link>
-          );
-        })}
+            </span>
+            <ChevronRight size={25} className="text-paw-cocoa/70" />
+          </Link>
+        ))}
       </section>
 
       <section className="paw-card mt-8 flex items-center overflow-hidden rounded-[20px] border-paw-lavender/30 bg-paw-lilac/80 p-5">
@@ -116,8 +118,12 @@ export default function HealthTipsPage() {
             Find Vets
           </PrimaryButton>
         </div>
-        <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full bg-white/35 text-paw-lavender">
-          <Lightbulb size={46} />
+        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-full bg-white/35">
+          <img
+            src={catDoctorImage.src}
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
         </div>
       </section>
 
