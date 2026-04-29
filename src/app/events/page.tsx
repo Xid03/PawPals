@@ -4,8 +4,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { TagChip } from "@/components/TagChip";
 import { events } from "@/data/mockData";
+import catEventImage from "../../../images/catEvent.png";
 import eventIcon from "../../../images/eventIcon.png";
-import homepageImage from "../../../images/homepage.png";
 
 export default function EventsPage() {
   return (
@@ -88,16 +88,16 @@ export default function EventsPage() {
 
       <section className="paw-card mt-7 flex items-center gap-4 overflow-hidden rounded-[20px] border-paw-peach/80 bg-paw-blush/70 p-4">
         <img
-          src={homepageImage.src}
+          src={catEventImage.src}
           alt=""
-          className="h-24 w-24 shrink-0 rounded-2xl object-cover"
+          className="h-[88px] w-[112px] shrink-0 object-cover object-center"
         />
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-black">Have an event to share?</h2>
-          <p className="mb-3 text-sm font-extrabold text-paw-cocoa/75">
+          <h2 className="text-[18px] font-black leading-tight">Have an event to share?</h2>
+          <p className="mb-3 text-[14px] font-extrabold leading-tight text-paw-cocoa/75">
             Let the PawPals community know!
           </p>
-          <PrimaryButton href="/create" className="min-h-0 h-10 w-32 rounded-xl text-sm">
+          <PrimaryButton href="/create" className="min-h-0 h-12 w-full rounded-xl text-sm">
             Create Event
           </PrimaryButton>
         </div>
