@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 227, 223, 0.9), transparent 30%),
+    radial-gradient(circle at 86% 20%, rgba(236, 226, 255, 0.85), transparent 32%),
+    #fff6e9;
+  color: #33272a;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.paw-card {
+  border: 1px solid rgba(122, 81, 63, 0.1);
+  background: rgba(255, 250, 242, 0.88);
+  box-shadow: 0 12px 30px rgba(158, 103, 74, 0.1);
+}
+
+.paw-input {
+  border: 1px solid rgba(122, 81, 63, 0.12);
+  background: rgba(255, 250, 242, 0.8);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.paw-input:focus {
+  border-color: rgba(247, 101, 137, 0.6);
+  box-shadow: 0 0 0 4px rgba(247, 101, 137, 0.13);
+}
+
+.cat-ear-left {
+  clip-path: polygon(50% 0, 0 100%, 100% 100%);
+}
+
+.cat-ear-right {
+  clip-path: polygon(50% 0, 0 100%, 100% 100%);
+}
