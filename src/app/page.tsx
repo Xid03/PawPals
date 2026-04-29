@@ -1,5 +1,6 @@
 import { Cat, Heart, PawPrint } from "lucide-react";
 import { CatMascot } from "@/components/CatMascot";
+import { PawPalsLogo } from "@/components/PawPalsLogo";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 export default function OnboardingPage() {
@@ -10,9 +11,8 @@ export default function OnboardingPage() {
       <Heart className="absolute right-12 top-64 fill-paw-rose/60 text-paw-rose/60" size={20} />
 
       <div className="text-center">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-[2rem] text-5xl font-black tracking-normal text-paw-ink">
-          <span className="drop-shadow-[0_4px_0_rgba(255,198,168,0.95)]">PawPals</span>
-          <PawPrint className="fill-paw-butter text-paw-ink" size={44} />
+        <div className="flex justify-center">
+          <PawPalsLogo />
         </div>
         <p className="mx-auto mt-6 max-w-52 text-base font-extrabold leading-relaxed text-paw-cocoa">
           A cozy community for you and your cat

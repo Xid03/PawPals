@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Apple, Eye, Lock, Mail, PawPrint, UserRound } from "lucide-react";
 import { CatMascot } from "@/components/CatMascot";
+import { PawPalsLogo } from "@/components/PawPalsLogo";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
@@ -16,8 +17,8 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
         <Link href="/" className="grid h-10 w-10 place-items-center rounded-full bg-white/55">
           <PawPrint size={20} />
         </Link>
-        <span className="rounded-full bg-white/55 px-4 py-2 text-xs font-black text-paw-cocoa">
-          PawPals
+        <span className="rounded-full bg-white/55 px-3 py-1.5">
+          <PawPalsLogo compact />
         </span>
       </div>
 
