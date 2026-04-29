@@ -16,8 +16,8 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 h-[76px] w-full max-w-[430px] -translate-x-1/2 border-t border-paw-cocoa/10 bg-white/80 px-4 pb-3 pt-2 shadow-[0_-12px_30px_rgba(122,81,63,0.08)] backdrop-blur-xl md:bottom-6 md:rounded-b-[2rem]">
-      <div className="grid h-full grid-cols-5 items-end gap-1">
+    <nav className="fixed bottom-0 left-1/2 z-50 h-[70px] w-full max-w-[430px] -translate-x-1/2 rounded-t-[24px] border border-paw-cocoa/10 bg-[#FFF8ED]/95 px-[14px] pb-[7px] pt-[8px] shadow-[0_-10px_24px_rgba(122,81,63,0.12)] backdrop-blur-xl md:bottom-6 md:rounded-[24px]">
+      <div className="grid h-full grid-cols-5 items-center gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active =
@@ -28,20 +28,31 @@ export function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-end gap-1 text-[10px] font-extrabold transition ${
-                active ? "text-paw-pink" : "text-paw-ink"
+              className={`flex h-full flex-col items-center justify-center gap-[2px] text-[10px] font-black leading-none transition ${
+                active ? "text-paw-pink" : "text-paw-ink/85"
               }`}
+              aria-label={tab.label}
             >
               <span
                 className={
                   tab.center
-                    ? "grid h-14 w-14 -translate-y-2 place-items-center rounded-full bg-paw-pink text-white shadow-soft ring-4 ring-white"
-                    : "grid h-8 w-8 place-items-center rounded-full"
+                    ? "grid h-[52px] w-[52px] -translate-y-[7px] place-items-center rounded-full bg-paw-pink text-white shadow-[0_8px_18px_rgba(247,101,137,0.38)] ring-[5px] ring-[#FFF8ED]"
+                    : "grid h-[27px] w-[27px] place-items-center rounded-full"
                 }
               >
-                <Icon size={tab.center ? 28 : 20} />
+                <Icon
+                  size={tab.center ? 28 : 21}
+                  strokeWidth={tab.center ? 2.6 : 2.3}
+                  className={
+                    tab.center
+                      ? "fill-white/20"
+                      : active && tab.href === "/home"
+                        ? "fill-paw-pink"
+                        : ""
+                  }
+                />
               </span>
-              <span>{tab.label}</span>
+              {tab.center ? null : <span>{tab.label}</span>}
             </Link>
           );
         })}

@@ -1,6 +1,7 @@
 import {
   Bell,
   Bookmark,
+  Brush,
   Hospital,
   PawPrint,
   ShieldPlus,
@@ -87,7 +88,7 @@ export const cats = [
 export const quickActions = [
   {
     title: "Health Tips",
-    href: "/community",
+    href: "/health",
     icon: tipIcon.src,
     color: "bg-paw-butter"
   },
@@ -105,9 +106,75 @@ export const quickActions = [
   },
   {
     title: "Events",
-    href: "/community",
+    href: "/events",
     icon: eventIcon.src,
     color: "bg-[#FFE0C5]"
+  }
+];
+
+export const events = [
+  {
+    id: "cat-cafe",
+    title: "Cat Cafe Meet & Greet",
+    date: "Sun, May 25 - 11:00 AM",
+    place: "Purrista Cat Cafe, Downtown",
+    distance: "1.2 km",
+    image:
+      "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=500&q=80"
+  },
+  {
+    id: "adoption-drive",
+    title: "Kitten Adoption Drive",
+    date: "Sat, May 31 - 2:00 PM",
+    place: "Happy Paws Shelter",
+    distance: "2.4 km",
+    image:
+      "https://images.unsplash.com/photo-1592194996308-7b43878e84a6?auto=format&fit=crop&w=500&q=80"
+  },
+  {
+    id: "care-workshop",
+    title: "Cat Care Workshop",
+    date: "Sun, Jun 8 - 10:30 AM",
+    place: "PawPals Community Center",
+    distance: "3.1 km",
+    image:
+      "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?auto=format&fit=crop&w=500&q=80"
+  },
+  {
+    id: "adventure-walk",
+    title: "Outdoor Adventure Walk",
+    date: "Sat, Jun 14 - 7:30 AM",
+    place: "Green Paws Park",
+    distance: "3.8 km",
+    image:
+      "https://images.unsplash.com/photo-1501820488136-72669149e0d4?auto=format&fit=crop&w=500&q=80"
+  }
+];
+
+export const healthTipCategories = [
+  {
+    title: "Healthy Nutrition",
+    description: "Learn what foods are safe and healthy for your cat.",
+    icon: Utensils,
+    color: "bg-[#DFF4C7] text-emerald-600"
+  },
+  {
+    title: "Grooming Essentials",
+    description: "Tips for brushing, bathing, and keeping your cat clean.",
+    icon: Brush,
+    color: "bg-paw-lilac text-paw-lavender"
+  },
+  {
+    title: "Understanding Behavior",
+    description: "Decode your cat's body language and behaviors.",
+    icon: PawPrint,
+    color: "bg-paw-blush text-paw-pink"
+  },
+  {
+    title: "Preventive Care",
+    description: "Vaccinations, regular checkups, and parasite prevention.",
+    icon: Hospital,
+    color: "bg-[#DDECFF] text-blue-600"
   }
 ];
 
