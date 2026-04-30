@@ -75,6 +75,9 @@ export type ApiEvent = {
   startsAt: string;
   location: string;
   city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distanceKm?: number | null;
   _count?: {
     rsvps: number;
     saves: number;

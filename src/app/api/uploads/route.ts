@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth";
 import { ok, handleRouteError, ApiRouteError } from "@/server/responses";
-import { saveUpload } from "@/server/upload";
+import { isUploadFile, saveUpload } from "@/server/upload";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file");
     const folder = String(formData.get("folder") ?? "media");
-    if (!(file instanceof File)) {
+    if (!isUploadFile(file)) {
       throw new ApiRouteError(400, "BAD_REQUEST", "Missing file");
     }
     const url = await saveUpload(file, folder);

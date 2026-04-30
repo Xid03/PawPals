@@ -5,7 +5,7 @@ import { prisma } from "@/server/prisma";
 import { requireAuth } from "@/server/auth";
 import { ok, handleRouteError, ApiRouteError } from "@/server/responses";
 import { ensureCatOwner } from "@/server/services";
-import { saveUpload } from "@/server/upload";
+import { isUploadFile, saveUpload } from "@/server/upload";
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     await ensureCatOwner(params.id, auth.id);
     const formData = await request.formData();
     const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!isUploadFile(file)) {
       throw new ApiRouteError(400, "BAD_REQUEST", "Missing file");
     }
     const url = await saveUpload(file, "cats");

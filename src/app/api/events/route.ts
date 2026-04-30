@@ -12,8 +12,54 @@ import { z } from "zod";
 const eventQuerySchema = z.object({
   q: z.string().optional(),
   category: z.enum(["NEARBY", "WORKSHOPS", "MEETUPS", "ADOPTION"]).optional(),
-  city: z.string().optional()
+  city: z.string().optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional()
 });
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceKm(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number }
+) {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(to.latitude - from.latitude);
+  const dLng = toRadians(to.longitude - from.longitude);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(from.latitude)) *
+      Math.cos(toRadians(to.latitude)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const cityCoordinates: Record<string, { latitude: number; longitude: number }> = {
+  "new york": { latitude: 40.7128, longitude: -74.006 },
+  "kuala lumpur": { latitude: 3.139, longitude: 101.6869 },
+  "petaling jaya": { latitude: 3.1073, longitude: 101.6067 },
+  shahalam: { latitude: 3.0733, longitude: 101.5185 },
+  "shah alam": { latitude: 3.0733, longitude: 101.5185 },
+  ipoh: { latitude: 4.5975, longitude: 101.0901 },
+  penang: { latitude: 5.4164, longitude: 100.3327 },
+  johor: { latitude: 1.4927, longitude: 103.7414 },
+  "johor bahru": { latitude: 1.4927, longitude: 103.7414 },
+  kuching: { latitude: 1.5533, longitude: 110.3592 },
+  "kota kinabalu": { latitude: 5.9804, longitude: 116.0735 }
+};
+
+function coordinatesForEvent(event: { latitude: number | null; longitude: number | null; city: string | null }) {
+  if (event.latitude !== null && event.longitude !== null) {
+    return { latitude: event.latitude, longitude: event.longitude };
+  }
+
+  const city = event.city?.trim().toLowerCase();
+  return city ? cityCoordinates[city] ?? null : null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,15 +72,31 @@ export async function GET(request: NextRequest) {
         ...(query.category ? { category: query.category } : {}),
         ...(query.city ? { city: { contains: query.city, mode: "insensitive" } } : {})
       },
-      skip: page.skip,
-      take: page.take,
       include: {
         organizer: { select: { id: true, name: true, username: true, avatarUrl: true } },
         _count: { select: { rsvps: true, saves: true } }
       },
       orderBy: { startsAt: "asc" }
     });
-    return paginated(events, page);
+
+    if (query.lat === undefined || query.lng === undefined) {
+      return paginated(events.slice(page.skip, page.skip + page.take), { ...page, total: events.length });
+    }
+
+    const origin = { latitude: query.lat, longitude: query.lng };
+    const sorted = events
+      .map((event) => {
+        const coordinates = coordinatesForEvent(event);
+        const distance = coordinates ? distanceKm(origin, coordinates) : null;
+
+        return {
+          ...event,
+          distanceKm: distance === null ? null : Math.round(distance * 10) / 10
+        };
+      })
+      .sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
+
+    return paginated(sorted.slice(page.skip, page.skip + page.take), { ...page, total: sorted.length });
   } catch (error) {
     return handleRouteError(error);
   }

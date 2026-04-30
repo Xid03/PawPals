@@ -21,7 +21,24 @@ const EXTENSIONS: Record<string, string> = {
   "video/webm": ".webm"
 };
 
-export function validateUpload(file: File) {
+export type UploadFile = {
+  type: string;
+  size: number;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+export function isUploadFile(value: unknown): value is UploadFile {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<UploadFile>;
+  return (
+    typeof candidate.type === "string" &&
+    typeof candidate.size === "number" &&
+    typeof candidate.arrayBuffer === "function"
+  );
+}
+
+export function validateUpload(file: UploadFile) {
   const maxBytes = Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024);
 
   if (!ALLOWED_TYPES.has(file.type)) {
@@ -33,7 +50,7 @@ export function validateUpload(file: File) {
   }
 }
 
-export async function saveUpload(file: File, folder: string) {
+export async function saveUpload(file: UploadFile, folder: string) {
   validateUpload(file);
 
   const uploadRoot = process.env.UPLOAD_DIR ?? "public/uploads";

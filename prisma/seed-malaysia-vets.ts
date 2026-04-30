@@ -1,12 +1,15 @@
 import { PrismaClient, type VetServiceType } from "@prisma/client";
 
+const googleLogo = (domain: string) => `https://www.google.com/s2/favicons?domain_url=https://${domain}&sz=128`;
+const templateVetImage = null;
+
 export const malaysiaVets = [
   {
     currentName: "Paws & Claws Vet Clinic",
     name: "Animal Medical Centre",
     description:
       "Referral veterinary hospital at Wisma Medivet, Kuala Lumpur, with consultation and 24-hour emergency support.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("animalhospital.com.my"),
     address: "Wisma Medivet, 8, Jln Tun Razak, 50400 Kuala Lumpur",
     city: "Kuala Lumpur",
     latitude: 3.1715,
@@ -19,7 +22,7 @@ export const malaysiaVets = [
   {
     name: "Gasing Veterinary Hospital",
     description: "Veterinary hospital in Gasing Indah, Petaling Jaya, offering small animal care.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "53 & 55, Jalan 5/58, Gasing Indah, 46000 Petaling Jaya, Selangor",
     city: "Petaling Jaya",
     latitude: 3.08733,
@@ -32,7 +35,7 @@ export const malaysiaVets = [
   {
     name: "Vets for Pets Animal Clinic Kuchai Lama",
     description: "Full-service small animal and exotic veterinary clinic in Kuchai Lama, Kuala Lumpur.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("vpac.com.my"),
     address: "No. 49, Jalan Kuchai Lama, Taman Lian Hoe, 58100 Kuala Lumpur",
     city: "Kuala Lumpur",
     latitude: 3.0906,
@@ -45,7 +48,7 @@ export const malaysiaVets = [
   {
     name: "Vets for Pets Animal Clinic Solaris Mont Kiara",
     description: "VPAC branch in Solaris Mont Kiara providing appointment-based veterinary care.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("vpac.com.my"),
     address: "No. 5, Jalan Solaris 4, Solaris Mont Kiara, 50480 Kuala Lumpur",
     city: "Kuala Lumpur",
     latitude: 3.1746,
@@ -58,7 +61,7 @@ export const malaysiaVets = [
   {
     name: "Healing Rooms Veterinary Clinic",
     description: "Subang Jaya veterinary clinic at SS14 offering consultations, vaccinations, surgery, and pet health care.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "98, Jalan SS 14/1, SS14, 47500 Subang Jaya, Selangor",
     city: "Subang Jaya",
     latitude: 3.0791,
@@ -71,7 +74,7 @@ export const malaysiaVets = [
   {
     name: "Shah Alam Veterinary Clinic",
     description: "Veterinary clinic in Seksyen 13, Shah Alam, serving pets with checkups, vaccination, and treatment.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "63-G, Jalan Snuker 13/28, Tadisma Business Centre, Seksyen 13, 40100 Shah Alam, Selangor",
     city: "Shah Alam",
     latitude: 3.0829,
@@ -84,7 +87,7 @@ export const malaysiaVets = [
   {
     name: "Serv-U Veterinary Clinic & Surgery",
     description: "Kota Kemuning veterinary clinic and surgery in Shah Alam.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "32, Jalan Anggerik Vanilla BE 31/BE, Kota Kemuning, 40460 Shah Alam, Selangor",
     city: "Shah Alam",
     latitude: 3.0015,
@@ -97,7 +100,7 @@ export const malaysiaVets = [
   {
     name: "Klang Veterinary Clinic & Surgery",
     description: "Veterinary clinic and surgery in Klang with extended emergency-style availability.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "20, Lorong Kasawari 4, 41150 Klang, Selangor",
     city: "Klang",
     latitude: 3.0528,
@@ -110,7 +113,7 @@ export const malaysiaVets = [
   {
     name: "Kitty's Care Veterinary Clinic Putrajaya",
     description: "Putrajaya veterinary clinic in Presint 8 focused on cat and pet care.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("kittyscarevet.com"),
     address: "No. 18, Jalan P8G1, Presint 8, 62250 Putrajaya",
     city: "Putrajaya",
     latitude: 2.9264,
@@ -123,7 +126,7 @@ export const malaysiaVets = [
   {
     name: "Jhan Veterinary Clinic Putrajaya",
     description: "Veterinary clinic in Presint 15, Putrajaya.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "No. 2, Jalan P15H, Presint 15, Pusat Perdagangan Greenpark, 62050 Putrajaya",
     city: "Putrajaya",
     latitude: 2.9431,
@@ -136,7 +139,7 @@ export const malaysiaVets = [
   {
     name: "Klinik Veterinar Family",
     description: "Veterinary clinic in Bandar Baru Uda, Johor Bahru.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "42, Jalan Padi Emas 2, Bandar Baru Uda, 81200 Johor Bahru, Johor",
     city: "Johor Bahru",
     latitude: 1.4953,
@@ -149,7 +152,7 @@ export const malaysiaVets = [
   {
     name: "Pawsitive Veterinary Clinic",
     description: "Veterinary clinic in Iskandar Puteri, Johor Bahru.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "175, Jalan Sentral 24, Iskandar Puteri, 79100 Johor Bahru, Johor",
     city: "Johor Bahru",
     latitude: 1.4292,
@@ -162,7 +165,7 @@ export const malaysiaVets = [
   {
     name: "Gill's Veterinary Clinic",
     description: "Penang veterinary hospital on Jalan Bagan Jermal with emergency contact support.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("gillsvet.com"),
     address: "10-A, Jalan Bagan Jermal, 10250 Penang",
     city: "Penang",
     latitude: 5.4331,
@@ -175,7 +178,7 @@ export const malaysiaVets = [
   {
     name: "Pava's Animal Clinic",
     description: "Animal clinic in Bukit Gelugor, Penang.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "201, Jalan Utara, Bukit Gelugor, 11700 Gelugor, Pulau Pinang",
     city: "Penang",
     latitude: 5.3736,
@@ -188,7 +191,7 @@ export const malaysiaVets = [
   {
     name: "Klinik Haiwan Mano",
     description: "Veterinary clinic in Taman Pertama, Ipoh.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "62, Jalan Ng Weng Hup, Taman Pertama, 30010 Ipoh, Perak",
     city: "Ipoh",
     latitude: 4.6243,
@@ -201,7 +204,7 @@ export const malaysiaVets = [
   {
     name: "Dr.K Veterinary Clinic & Surgery",
     description: "Veterinary clinic and surgery in Bandar Baru Medan Ipoh.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "17, Jalan Medan Ipoh 8, Bandar Baru Medan Ipoh, 31400 Ipoh, Perak",
     city: "Ipoh",
     latitude: 4.6256,
@@ -214,7 +217,7 @@ export const malaysiaVets = [
   {
     name: "Klinik Haiwan & Surgeri AOR",
     description: "Alor Setar veterinary clinic and surgery in Kompleks Perniagaan Sultan Abdul Hamid.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "No 96, Kompleks Perniagaan Sultan Abdul Hamid, Persiaran Sultan Abdul Hamid, 05050 Alor Setar, Kedah",
     city: "Alor Setar",
     latitude: 6.1168,
@@ -227,7 +230,7 @@ export const malaysiaVets = [
   {
     name: "Klinik Haiwan & Surgeri Darul Aman",
     description: "Veterinary clinic and surgery in Mergong Jaya, Alor Setar.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "Ground Floor, 255, Jalan Inang 4, Taman Sri Inang, Mergong Jaya, 05150 Alor Setar, Kedah",
     city: "Alor Setar",
     latitude: 6.1515,
@@ -240,7 +243,7 @@ export const malaysiaVets = [
   {
     name: "SANCTUARY Veterinary Clinic",
     description: "Veterinary clinic in Kangar Jaya, Perlis.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "10, Jalan Kangar Jaya 2, Kangar Jaya, 01000 Kangar, Perlis",
     city: "Kangar",
     latitude: 6.4414,
@@ -253,7 +256,7 @@ export const malaysiaVets = [
   {
     name: "V Care Animal Clinic",
     description: "Veterinary clinic in Kampung Dusun Muda, Kota Bharu.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("www.vcareklinikhaiwan.com"),
     address: "Lot 4634, Jalan Dusun Muda, Kampung Dusun Muda, 15200 Kota Bharu, Kelantan",
     city: "Kota Bharu",
     latitude: 6.1166,
@@ -266,7 +269,7 @@ export const malaysiaVets = [
   {
     name: "DrNor Veterinary Clinic",
     description: "Veterinary clinic in Kampung Gong Kapas, Kuala Terengganu.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "239, Lorong Pasar, Kampung Gong Kapas, 21100 Kuala Terengganu, Terengganu",
     city: "Kuala Terengganu",
     latitude: 5.3297,
@@ -279,7 +282,7 @@ export const malaysiaVets = [
   {
     name: "Pet Alley Animal Clinic",
     description: "Kuala Terengganu clinic offering consultation, boarding, neutering, and vaccination services.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "102-H, Jalan Hiliran, 20300 Kuala Terengganu, Terengganu",
     city: "Kuala Terengganu",
     latitude: 5.3239,
@@ -292,7 +295,7 @@ export const malaysiaVets = [
   {
     name: "Klinik Veterinar Vetcare RP",
     description: "Veterinary clinic in Taman Jade, Kuantan.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "A243, Jalan Dato' Wong Ah Jang, Taman Jade, 25100 Kuantan, Pahang",
     city: "Kuantan",
     latitude: 3.8077,
@@ -305,7 +308,7 @@ export const malaysiaVets = [
   {
     name: "Jawhari Wellness Veterinary Clinic",
     description: "Wellness veterinary clinic in Taman Pandan Damai, Kuantan.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "B20, Lorong Pandan Damai 2/4, Taman Pandan Damai, 25150 Kuantan, Pahang",
     city: "Kuantan",
     latitude: 3.7797,
@@ -318,7 +321,7 @@ export const malaysiaVets = [
   {
     name: "I Care Veterinary Clinic",
     description: "Veterinary clinic in Taman IKS Merdeka, Melaka.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "26, Jalan IKS M5, Taman IKS Merdeka, 75350 Melaka",
     city: "Melaka",
     latitude: 2.2667,
@@ -331,7 +334,7 @@ export const malaysiaVets = [
   {
     name: "Animalia Veterinary Clinic",
     description: "Veterinary clinic in Bandar Sri Sendayan, Seremban.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "Metro Sendayan, 211, Jalan Metro Sendayan 2/3, Bandar Sri Sendayan, 71950 Seremban, Negeri Sembilan",
     city: "Seremban",
     latitude: 2.6934,
@@ -344,7 +347,7 @@ export const malaysiaVets = [
   {
     name: "Kinabalu Animal Clinic",
     description: "Animal clinic in Kolombong, Kota Kinabalu.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: googleLogo("kinabaluvet.youcanbook.me"),
     address: "Lot 6, Lorong Durian 3, Kian Yap Industrial Estate, Kolombong, Inanam, 88450 Kota Kinabalu, Sabah",
     city: "Kota Kinabalu",
     latitude: 5.9975,
@@ -357,7 +360,7 @@ export const malaysiaVets = [
   {
     name: "BDC Veterinary Clinic",
     description: "Kota Kinabalu veterinary clinic in Inanam.",
-    imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "No. 2 Wei Hing Light Industrial Centre, Jalan Kilang, Jalan Kolombong, Inanam, 88450 Kota Kinabalu, Sabah",
     city: "Kota Kinabalu",
     latitude: 5.997,
@@ -370,7 +373,7 @@ export const malaysiaVets = [
   {
     name: "Animal Central Veterinary Clinic",
     description: "Kuching veterinary clinic on Jalan Tabuan.",
-    imageUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "70, Jalan Tabuan, 93100 Kuching, Sarawak",
     city: "Kuching",
     latitude: 1.547,
@@ -383,7 +386,7 @@ export const malaysiaVets = [
   {
     name: "Ting & Lu Veterinary Center",
     description: "Veterinary center on Westine Avenue, Kuching.",
-    imageUrl: "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "No. 87 Lot 11879 SL 12, Westine Avenue, 801-2B Jalan Tun Jugah, 93350 Kuching, Sarawak",
     city: "Kuching",
     latitude: 1.5145,
@@ -396,7 +399,7 @@ export const malaysiaVets = [
   {
     name: "Jabatan Perkhidmatan Veterinar Labuan",
     description: "Government veterinary clinic service in Labuan.",
-    imageUrl: "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
+    imageUrl: templateVetImage,
     address: "700, 87000 Labuan",
     city: "Labuan",
     latitude: 5.2831,

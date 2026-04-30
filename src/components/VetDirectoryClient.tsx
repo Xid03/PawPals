@@ -19,7 +19,7 @@ function mapVet(vet: ApiVet): DisplayVet {
   return {
     id: vet.id,
     name: vet.name,
-    image: vet.imageUrl ?? mockVets[0].image,
+    image: vet.imageUrl ?? "",
     distance,
     rating: vet.rating.toFixed(1),
     reviews: vet._count?.favorites ?? 0,
