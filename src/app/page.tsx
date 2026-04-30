@@ -1,5 +1,6 @@
 import { Heart, PawPrint } from "lucide-react";
 import { CatMascot } from "@/components/CatMascot";
+import { GuestContinueButton } from "@/components/GuestContinueButton";
 import { PawPalsLogo } from "@/components/PawPalsLogo";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
@@ -39,14 +40,7 @@ export default function OnboardingPage() {
           >
             Log In
           </PrimaryButton>
-          <PrimaryButton
-            href="/home"
-            variant="ghost"
-            className="mx-auto min-h-0 h-[38px] w-[232px] rounded-[18px] text-[13px]"
-            icon={<PawPrint size={15} />}
-          >
-            Continue as Guest
-          </PrimaryButton>
+          <GuestContinueButton />
         </div>
       </div>
     </section>

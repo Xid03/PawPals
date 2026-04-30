@@ -109,20 +109,80 @@ export type ApiMessage = {
   sender?: PublicUser;
 };
 
+const TOKEN_KEY = "pawpals_token";
+const GUEST_KEY = "pawpals_guest";
+export const guestLimitMessage = "Please log in or create an account to use this feature.";
+const GUEST_LIMIT_EVENT = "pawpals:guest-limit";
+
+class GuestLimitError extends Error {
+  constructor() {
+    super("");
+    this.name = "GuestLimitError";
+  }
+}
+
+function showGuestLimitDialog() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent(GUEST_LIMIT_EVENT, {
+        detail: { message: guestLimitMessage }
+      })
+    );
+  }
+}
+
+export function listenForGuestLimitDialog(callback: (message: string) => void) {
+  if (typeof window === "undefined") return () => undefined;
+
+  function handleGuestLimit(event: Event) {
+    const detail = (event as CustomEvent<{ message?: string }>).detail;
+    callback(detail?.message ?? guestLimitMessage);
+  }
+
+  window.addEventListener(GUEST_LIMIT_EVENT, handleGuestLimit);
+  return () => window.removeEventListener(GUEST_LIMIT_EVENT, handleGuestLimit);
+}
+
 export function getToken() {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("pawpals_token");
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function isGuestMode() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(GUEST_KEY) === "true" && !getToken();
+}
+
+export function setGuestMode() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.setItem(GUEST_KEY, "true");
+  }
+}
+
+export function clearGuestMode() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(GUEST_KEY);
+  }
+}
+
+export function requireSignedIn() {
+  if (isGuestMode()) {
+    showGuestLimitDialog();
+    throw new GuestLimitError();
+  }
 }
 
 export function setToken(token: string) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("pawpals_token", token);
+    window.localStorage.setItem(TOKEN_KEY, token);
+    window.localStorage.removeItem(GUEST_KEY);
   }
 }
 
 export function clearToken() {
   if (typeof window !== "undefined") {
-    window.localStorage.removeItem("pawpals_token");
+    window.localStorage.removeItem(TOKEN_KEY);
   }
 }
 
@@ -132,6 +192,14 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
   const token = getToken();
+  const method = (options.method ?? "GET").toUpperCase();
+
+  const isAuthMutation = path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register");
+
+  if (isGuestMode() && !isAuthMutation && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    showGuestLimitDialog();
+    throw new GuestLimitError();
+  }
 
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);

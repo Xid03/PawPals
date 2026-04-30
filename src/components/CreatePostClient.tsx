@@ -7,7 +7,7 @@ import { Plus, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, requireSignedIn } from "@/lib/api-client";
 import { cats, currentUser } from "@/data/mockData";
 
 const topics = ["Health", "Behavior", "Food", "General", "Memes"];
@@ -25,6 +25,7 @@ export function CreatePostClient() {
     setStatus("");
     setIsSubmitting(true);
     try {
+      requireSignedIn();
       await apiFetch("/api/posts", {
         method: "POST",
         body: JSON.stringify({ text, topic, mediaUrls: [] })
@@ -67,7 +68,14 @@ export function CreatePostClient() {
             <button
               className="grid h-20 w-20 place-items-center rounded-2xl bg-white/70 text-paw-cocoa"
               type="button"
-              onClick={() => setStatus("Photo upload is handled by /api/uploads. Pickers can be connected next.")}
+              onClick={() => {
+                try {
+                  requireSignedIn();
+                  setStatus("Photo upload is handled by /api/uploads. Pickers can be connected next.");
+                } catch (error) {
+                  setStatus(error instanceof Error ? error.message : "Please log in to add media.");
+                }
+              }}
               aria-label="Add media"
             >
               <Plus size={26} />
@@ -91,7 +99,14 @@ export function CreatePostClient() {
             <button
               className="text-sm font-extrabold text-paw-cocoa/70"
               type="button"
-              onClick={() => setAudience((current) => (current === "Public" ? "Followers" : "Public"))}
+              onClick={() => {
+                try {
+                  requireSignedIn();
+                  setAudience((current) => (current === "Public" ? "Followers" : "Public"));
+                } catch (error) {
+                  setStatus(error instanceof Error ? error.message : "Please log in to change audience.");
+                }
+              }}
             >
               {audience}
             </button>

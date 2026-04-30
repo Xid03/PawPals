@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { Home, MessageCircle, PawPrint, Search, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
+import profileIcon from "../../images/profileIcon.png";
 
 const tabs = [
   { label: "Home", href: "/home", icon: Home },
   { label: "Discover", href: "/discover", icon: Search },
   { label: "Create", href: "/create", icon: PawPrint, center: true },
   { label: "Chats", href: "/chats", icon: MessageCircle },
-  { label: "Profile", href: "/profile", icon: UserRound }
+  { label: "Profile", href: "/profile", icon: UserRound, iconSrc: profileIcon.src }
 ];
 
 export function BottomNav() {
@@ -40,17 +41,21 @@ export function BottomNav() {
                     : "grid h-[27px] w-[27px] place-items-center rounded-full"
                 }
               >
-                <Icon
-                  size={tab.center ? 28 : 21}
-                  strokeWidth={tab.center ? 2.6 : 2.3}
-                  className={
-                    tab.center
-                      ? "fill-white/20"
-                      : active && tab.href === "/home"
-                        ? "fill-paw-pink"
-                        : ""
-                  }
-                />
+                {tab.iconSrc ? (
+                  <img src={tab.iconSrc} alt="" className="h-[23px] w-[23px] rounded-full object-cover" />
+                ) : (
+                  <Icon
+                    size={tab.center ? 28 : 21}
+                    strokeWidth={tab.center ? 2.6 : 2.3}
+                    className={
+                      tab.center
+                        ? "fill-white/20"
+                        : active && tab.href === "/home"
+                          ? "fill-paw-pink"
+                          : ""
+                    }
+                  />
+                )}
               </span>
               {tab.center ? null : <span>{tab.label}</span>}
             </Link>

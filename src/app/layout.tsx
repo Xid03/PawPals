@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { GuestLimitDialog } from "@/components/GuestLimitDialog";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="font-sans">
         <main className="relative mx-auto min-h-screen w-full max-w-[430px] overflow-hidden bg-paw-cream shadow-paw md:my-6 md:min-h-[860px] md:rounded-[2rem]">
           {children}
+          <GuestLimitDialog />
         </main>
       </body>
     </html>

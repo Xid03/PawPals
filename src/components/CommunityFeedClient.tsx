@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PageHeader } from "@/components/PageHeader";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, type ApiPost } from "@/lib/api-client";
+import { apiFetch, requireSignedIn, type ApiPost } from "@/lib/api-client";
 import { currentUser, posts as mockPosts } from "@/data/mockData";
 
 function mapPost(post: ApiPost): DisplayPost {
@@ -24,6 +24,7 @@ function mapPost(post: ApiPost): DisplayPost {
 }
 
 export function CommunityFeedClient() {
+  const router = useRouter();
   const [mode, setMode] = useState("for-you");
   const [posts, setPosts] = useState<DisplayPost[]>(mockPosts);
   const [query, setQuery] = useState("");
@@ -61,6 +62,15 @@ export function CommunityFeedClient() {
   function openSearch() {
     setShowSearch(true);
     setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
+  function openCreatePost() {
+    try {
+      requireSignedIn();
+      router.push("/create");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Please log in to create posts.");
+    }
   }
 
   return (
@@ -110,13 +120,14 @@ export function CommunityFeedClient() {
           />
         ))}
       </div>
-      <Link
-        href="/create"
+      <button
+        type="button"
+        onClick={openCreatePost}
         className="fixed bottom-24 left-1/2 z-40 ml-[124px] grid h-16 w-16 -translate-x-1/2 place-items-center rounded-full bg-paw-pink text-white shadow-soft md:bottom-30"
         aria-label="Create post"
       >
         <Plus size={30} />
-      </Link>
+      </button>
       <BottomNav />
     </section>
   );

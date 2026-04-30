@@ -5,7 +5,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Bookmark, CalendarDays, CheckCircle2, ImagePlus, MapPin, PawPrint, Search, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, type ApiEvent } from "@/lib/api-client";
+import { apiFetch, requireSignedIn, type ApiEvent } from "@/lib/api-client";
 import { events as mockEvents } from "@/data/mockData";
 import catEventImage from "../../images/catEvent.png";
 import eventIcon from "../../images/eventIcon.png";
@@ -124,6 +124,13 @@ export function EventsClient() {
 
   async function saveEvent(eventId: string) {
     setStatus("");
+    try {
+      requireSignedIn();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Please log in to save events.");
+      return;
+    }
+
     let nextSaved = false;
     setSavedEventIds((current) => {
       const next = new Set(current);
@@ -235,6 +242,7 @@ export function EventsClient() {
     setStatus("");
     setIsSubmittingEvent(true);
     try {
+      requireSignedIn();
       let imageUrl: string | undefined;
       const startsAt = new Date(eventForm.startsAt);
 
@@ -353,7 +361,18 @@ export function EventsClient() {
         <div className="min-w-0 flex-1">
           <h2 className="text-[18px] font-black leading-tight">Have an event to share?</h2>
           <p className="mb-3 text-[14px] font-extrabold leading-tight text-paw-cocoa/75">Let the PawPals community know!</p>
-          <button type="button" onClick={() => setIsCreatingEvent(true)} className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                requireSignedIn();
+                setIsCreatingEvent(true);
+              } catch (error) {
+                setStatus(error instanceof Error ? error.message : "Please log in to create events.");
+              }
+            }}
+            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft"
+          >
             Create Event
           </button>
         </div>

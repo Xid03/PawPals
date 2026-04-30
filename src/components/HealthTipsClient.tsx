@@ -5,7 +5,7 @@ import { Bookmark, ChevronRight, MapPin, PawPrint, Search, Sparkles, X } from "l
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, type ApiHealthTip } from "@/lib/api-client";
+import { apiFetch, requireSignedIn, type ApiHealthTip } from "@/lib/api-client";
 import { healthTipCategories } from "@/data/mockData";
 import catDoctorImage from "../../images/catDoctor.png";
 import homepageImage from "../../images/homepage.png";
@@ -92,6 +92,13 @@ export function HealthTipsClient() {
   }
 
   async function saveTip(id?: string, title?: string) {
+    try {
+      requireSignedIn();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Please log in to save health tips.");
+      return;
+    }
+
     if (!id) {
       setStatus(`${title ?? "Tip"} is ready to read`);
       return;
@@ -119,6 +126,16 @@ export function HealthTipsClient() {
       setDailyIndex(0);
     }
   }, [dailyIndex, dailyTipViews.length]);
+
+  useEffect(() => {
+    if (dailyTipViews.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setDailyIndex((current) => (current + 1) % dailyTipViews.length);
+    }, 3500);
+
+    return () => window.clearInterval(timer);
+  }, [dailyTipViews.length]);
 
   const activeDailyTip = dailyTipViews[dailyIndex] ?? fallbackDailyTips[0];
 
@@ -175,10 +192,7 @@ export function HealthTipsClient() {
 
   return (
     <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
-      <div className="mb-8 flex items-center justify-between px-1">
-        <span className="text-xl font-black text-paw-ink">9:41</span>
-      </div>
-      <header className="relative mb-7 flex items-center justify-center gap-5">
+      <header className="relative mb-7 flex items-center justify-center gap-5 pt-12">
         <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />
         <h1 className="text-[34px] font-black leading-none text-paw-ink">Health Tips</h1>
         <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />

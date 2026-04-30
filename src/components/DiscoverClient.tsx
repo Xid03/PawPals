@@ -6,7 +6,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CatCard, type DisplayCat } from "@/components/CatCard";
 import { PageHeader } from "@/components/PageHeader";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, ageLabel, catImage, distanceLabel, type ApiCat } from "@/lib/api-client";
+import { apiFetch, ageLabel, catImage, distanceLabel, requireSignedIn, type ApiCat } from "@/lib/api-client";
 import { cats as mockCats } from "@/data/mockData";
 
 function mapCat(cat: ApiCat): DisplayCat {
@@ -64,15 +64,15 @@ export function DiscoverClient() {
   async function swipe(action: "LIKE" | "SKIP") {
     if (!cat) return;
     try {
+      requireSignedIn();
       const result = await apiFetch<{ match: unknown | null }>("/api/discover/swipes", {
         method: "POST",
         body: JSON.stringify({ catId: cat.id, action })
       });
       setMessage(result.match ? "It's a match! Send a meow." : action === "LIKE" ? "Paw sent!" : "Skipped");
+      setIndex((current) => current + 1);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Swipe saved locally");
-    } finally {
-      setIndex((current) => current + 1);
     }
   }
 

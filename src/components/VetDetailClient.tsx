@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Building2, Globe, Heart, MapPin, Phone, ShieldPlus, Star } from "lucide-react";
-import { apiFetch, type ApiVet } from "@/lib/api-client";
+import { apiFetch, requireSignedIn, type ApiVet } from "@/lib/api-client";
 import { vets as mockVets } from "@/data/mockData";
 
 function serviceLabel(type: string) {
@@ -54,6 +54,7 @@ export function VetDetailClient({ id }: { id: string }) {
 
   async function favorite() {
     try {
+      requireSignedIn();
       await apiFetch(`/api/vets/${id}/favorite`, { method: "POST" });
       setStatus("Favorite vets updated");
     } catch (error) {
@@ -63,6 +64,7 @@ export function VetDetailClient({ id }: { id: string }) {
 
   async function book() {
     try {
+      requireSignedIn();
       await apiFetch("/api/appointments", {
         method: "POST",
         body: JSON.stringify({

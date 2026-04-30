@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, MoreHorizontal, PawPrint } from "lucide-react";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, ageLabel, catImage, type ApiCat } from "@/lib/api-client";
+import { apiFetch, ageLabel, catImage, requireSignedIn, type ApiCat } from "@/lib/api-client";
 import { cats as mockCats } from "@/data/mockData";
 
 export function CatProfileClient({ id }: { id: string }) {
@@ -38,6 +38,7 @@ export function CatProfileClient({ id }: { id: string }) {
     }
 
     try {
+      requireSignedIn();
       await apiFetch("/api/conversations", {
         method: "POST",
         body: JSON.stringify({ userId: display.ownerId })
@@ -59,7 +60,14 @@ export function CatProfileClient({ id }: { id: string }) {
         <button
           className="absolute right-5 top-6 grid h-10 w-10 place-items-center rounded-full bg-white/70"
           type="button"
-          onClick={() => setStatus("Cat profile options will appear here.")}
+          onClick={() => {
+            try {
+              requireSignedIn();
+              setStatus("Cat profile options will appear here.");
+            } catch (error) {
+              setStatus(error instanceof Error ? error.message : "Please log in to use this feature.");
+            }
+          }}
           aria-label="Cat profile options"
         >
           <MoreHorizontal size={20} />

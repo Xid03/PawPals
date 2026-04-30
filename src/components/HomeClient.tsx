@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import { Bell, MapPin, PawPrint, Search } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
-import { apiFetch, ageLabel, catImage, distanceLabel, type ApiCat, type ApiPost } from "@/lib/api-client";
+import { apiFetch, ageLabel, catImage, distanceLabel, isGuestMode, type ApiCat, type ApiPost } from "@/lib/api-client";
 import { currentUser, cats as mockCats, posts as mockPosts, quickActions } from "@/data/mockData";
+import profileIcon from "../../images/profileIcon.png";
 
 function mapPost(post: ApiPost): DisplayPost {
   return {
@@ -27,6 +28,7 @@ export function HomeClient() {
   const [cats, setCats] = useState(mockCats);
   const [posts, setPosts] = useState<DisplayPost[]>(mockPosts);
   const [userName, setUserName] = useState("Cat Lover");
+  const [guest, setGuest] = useState(false);
   const [nearbyStatus, setNearbyStatus] = useState("Tap Explore to use your location");
   const [isLocating, setIsLocating] = useState(false);
 
@@ -46,8 +48,16 @@ export function HomeClient() {
   }
 
   useEffect(() => {
+    const isGuest = isGuestMode();
+    setGuest(isGuest);
+    if (isGuest) {
+      setUserName("Guest");
+    }
+
     apiFetch<{ user: { name: string; avatarUrl?: string | null } }>("/api/auth/me")
-      .then(({ user }) => setUserName(user.name || "Cat Lover"))
+      .then(({ user }) => {
+        if (!isGuest) setUserName(user.name || "Cat Lover");
+      })
       .catch(() => undefined);
 
     apiFetch<ApiCat[]>("/api/cats?limit=4")
@@ -128,15 +138,22 @@ export function HomeClient() {
     <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
       <header className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <img
-            src={currentUser.avatar}
-            alt={userName}
-            className="h-12 w-12 rounded-full object-cover ring-2 ring-paw-peach"
-          />
+          {guest ? (
+            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-white ring-2 ring-paw-peach">
+              <img src={profileIcon.src} alt="Guest" className="h-full w-full object-cover" />
+            </span>
+          ) : (
+            <img
+              src={currentUser.avatar}
+              alt={userName}
+              className="h-12 w-12 rounded-full object-cover ring-2 ring-paw-peach"
+            />
+          )}
           <div>
             <h1 className="max-w-64 text-2xl font-black leading-tight text-paw-ink">
-              Good Meowning, {userName}!
+              {guest ? "Welcome, Guest!" : `Good Meowning, ${userName}!`}
             </h1>
+            {guest ? <p className="mt-1 text-xs font-extrabold text-paw-cocoa/70">Browse PawPals with limited access</p> : null}
           </div>
         </div>
         <Link
