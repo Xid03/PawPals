@@ -32,10 +32,38 @@ const fallbackTipDetails: Record<string, string> = {
     "Regular checkups, vaccines, parasite prevention, and dental checks help catch small problems before they become urgent."
 };
 
+const fallbackDailyTips: HealthTipView[] = [
+  {
+    title: "Keep your cat hydrated!",
+    description: "Fresh water helps support healthy kidneys and digestion.",
+    body: "Refresh water at least daily, wash bowls often, and consider a fountain if your cat prefers moving water.",
+    category: "WELLNESS",
+    icon: healthTipCategories[0].icon,
+    color: healthTipCategories[0].color
+  },
+  {
+    title: "Brush a little today",
+    description: "Short grooming sessions help reduce shedding and hairballs.",
+    body: "Brush gently for a few minutes, then reward your cat. Short sessions are easier to repeat and help grooming feel calm.",
+    category: "GROOMING",
+    icon: healthTipCategories[1].icon,
+    color: healthTipCategories[1].color
+  },
+  {
+    title: "Watch the litter box",
+    description: "Changes in toilet habits can be an early health signal.",
+    body: "Notice changes in frequency, smell, color, or straining. If anything feels unusual, contact a vet early.",
+    category: "PREVENTIVE_CARE",
+    icon: healthTipCategories[3].icon,
+    color: healthTipCategories[3].color
+  }
+];
+
 export function HealthTipsClient() {
   const router = useRouter();
   const [daily, setDaily] = useState<ApiHealthTip | null>(null);
   const [tips, setTips] = useState<ApiHealthTip[]>([]);
+  const [dailyIndex, setDailyIndex] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedTip, setSelectedTip] = useState<HealthTipView | null>(null);
@@ -51,6 +79,18 @@ export function HealthTipsClient() {
       .catch(() => undefined);
   }, []);
 
+  function mapApiTip(tip: ApiHealthTip, index: number): HealthTipView {
+    return {
+      id: tip.id,
+      title: tip.title,
+      description: tip.body,
+      body: tip.body,
+      category: tip.category,
+      icon: healthTipCategories[index % healthTipCategories.length].icon,
+      color: healthTipCategories[index % healthTipCategories.length].color
+    };
+  }
+
   async function saveTip(id?: string, title?: string) {
     if (!id) {
       setStatus(`${title ?? "Tip"} is ready to read`);
@@ -64,17 +104,23 @@ export function HealthTipsClient() {
     }
   }
 
-  const dailyTitle = daily?.title ?? "Keep your cat hydrated!";
-  const dailyBody = daily?.body ?? "Fresh water helps support healthy kidneys and digestion.";
-  const dailyTipView: HealthTipView = {
-    id: daily?.id,
-    title: dailyTitle,
-    description: dailyBody,
-    body: daily?.body ?? "Refresh water at least daily, wash bowls often, and consider a fountain if your cat prefers moving water.",
-    category: daily?.category ?? "WELLNESS",
-    icon: healthTipCategories[0].icon,
-    color: healthTipCategories[0].color
-  };
+  const dailyTipViews = useMemo<HealthTipView[]>(() => {
+    const apiDailyTips = [
+      ...(daily ? [daily] : []),
+      ...tips.filter((tip) => tip.id !== daily?.id)
+    ].slice(0, 3);
+
+    if (!apiDailyTips.length) return fallbackDailyTips;
+    return apiDailyTips.map(mapApiTip);
+  }, [daily, tips]);
+
+  useEffect(() => {
+    if (dailyIndex > dailyTipViews.length - 1) {
+      setDailyIndex(0);
+    }
+  }, [dailyIndex, dailyTipViews.length]);
+
+  const activeDailyTip = dailyTipViews[dailyIndex] ?? fallbackDailyTips[0];
 
   const displayedTips = useMemo<HealthTipView[]>(() => {
     const source = tips.length ? tips : healthTipCategories;
@@ -162,11 +208,11 @@ export function HealthTipsClient() {
       <h2 className="mb-3 flex items-center gap-2 text-[21px] font-black">Daily Tip <Sparkles className="text-[#F7B744]" size={20} /></h2>
       <section className="relative mb-5 overflow-hidden rounded-[20px] border border-[#F7B744]/40 bg-[#FFF1CB] p-5 shadow-soft">
         <div className="relative z-10 max-w-[58%]">
-          <h3 className="text-xl font-black">{dailyTitle}</h3>
-          <p className="mt-3 text-base font-extrabold leading-snug text-paw-cocoa">{dailyBody}</p>
+          <h3 className="text-xl font-black">{activeDailyTip.title}</h3>
+          <p className="mt-3 text-base font-extrabold leading-snug text-paw-cocoa">{activeDailyTip.description}</p>
           <button
             type="button"
-            onClick={() => setSelectedTip(dailyTipView)}
+            onClick={() => setSelectedTip(activeDailyTip)}
             className="mt-5 inline-flex h-11 w-32 items-center justify-center rounded-xl bg-gradient-to-r from-[#FFB23F] to-[#FF9D43] text-sm font-extrabold text-white shadow-soft"
           >
             Learn More
@@ -175,9 +221,16 @@ export function HealthTipsClient() {
         <img src={homepageImage.src} alt="" className="absolute bottom-3 right-3 h-36 w-36 object-cover" />
       </section>
       <div className="mb-5 flex justify-center gap-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-paw-pink" />
-        <span className="h-2.5 w-2.5 rounded-full bg-paw-blush" />
-        <span className="h-2.5 w-2.5 rounded-full bg-paw-blush" />
+        {dailyTipViews.map((tip, index) => (
+          <button
+            key={`${tip.title}-${index}`}
+            type="button"
+            onClick={() => setDailyIndex(index)}
+            className={`h-2.5 rounded-full transition-all ${dailyIndex === index ? "w-6 bg-paw-pink" : "w-2.5 bg-paw-blush"}`}
+            aria-label={`Show daily tip ${index + 1}`}
+            aria-pressed={dailyIndex === index}
+          />
+        ))}
       </div>
       <h2 className="mb-3 text-[21px] font-black">Explore Tips</h2>
       <section className="paw-card overflow-hidden rounded-[20px]">
