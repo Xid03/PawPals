@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Bell, Camera, CirclePlus, Image as ImageIcon, PawPrint, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { CatMascot } from "@/components/CatMascot";
-import { apiFetch, getToken, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
+import { apiFetch, getToken, isGuestMode, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
 import { cats, chatMessages } from "@/data/mockData";
+import loginIcon from "../../images/loginIcon.png";
 
 type DisplayMessage = {
   id: string;
@@ -108,6 +109,7 @@ export function ChatClient() {
   const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [guestLocked, setGuestLocked] = useState<boolean | null>(null);
   const [conversations, setConversations] = useState<ApiConversation[]>([]);
   const [selectedThread, setSelectedThread] = useState<ChatThread | null>(null);
   const [conversation, setConversation] = useState<ApiConversation | null>(null);
@@ -119,6 +121,10 @@ export function ChatClient() {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
+    const locked = isGuestMode();
+    setGuestLocked(locked);
+    if (locked) return;
+
     apiFetch<ApiConversation[]>("/api/conversations?limit=20")
       .then((items) => setConversations(items))
       .catch(() => setStatus(""));
@@ -309,7 +315,13 @@ export function ChatClient() {
           <div className="min-w-0">
             <h1 className="truncate text-xl font-black leading-tight text-paw-ink">{selectedThread?.name ?? "Chats"}</h1>
             <p className="text-xs font-bold text-paw-cocoa/70">
-              {selectedThread ? (conversation ? "API conversation" : "Mock preview") : "Previous conversations"}
+              {guestLocked
+                ? "Login to start chatting"
+                : selectedThread
+                  ? conversation
+                    ? "API conversation"
+                    : "Mock preview"
+                  : "Previous conversations"}
             </p>
           </div>
         </div>
@@ -323,7 +335,38 @@ export function ChatClient() {
         </button>
       </header>
       {status ? <p className="px-5 pb-3 text-xs font-extrabold text-paw-cocoa/70">{status}</p> : null}
-      {!selectedThread ? (
+      {guestLocked ? (
+        <div className="flex flex-1 items-start justify-center px-5 pt-8">
+          <div className="w-full rounded-[30px] border border-paw-peach/70 bg-white/80 px-5 py-8 text-center shadow-soft">
+            <div className="mx-auto mb-4 grid h-24 w-24 place-items-center overflow-hidden rounded-full bg-paw-blush ring-4 ring-white">
+              <img src={loginIcon.src} alt="" className="h-full w-full object-cover" />
+            </div>
+            <h2 className="text-2xl font-black text-paw-ink">Login Required</h2>
+            <p className="mx-auto mt-2 max-w-[260px] text-sm font-extrabold leading-relaxed text-paw-cocoa/70">
+              Please log in to view previous chats and message other PawPals.
+            </p>
+            <button
+              type="button"
+              className="mt-6 inline-flex h-12 min-w-36 items-center justify-center gap-2 rounded-2xl bg-paw-pink px-6 text-sm font-black text-white shadow-soft"
+              onClick={() => router.push("/auth?mode=login")}
+            >
+              Log In
+              <PawPrint size={18} />
+            </button>
+            <button
+              type="button"
+              className="mt-3 block w-full text-sm font-black text-paw-cocoa"
+              onClick={() => router.push("/auth?mode=signup")}
+            >
+              Create Account
+            </button>
+          </div>
+        </div>
+      ) : guestLocked === null ? (
+        <div className="flex flex-1 items-center justify-center px-5 text-sm font-black text-paw-cocoa/70">
+          Checking chat access...
+        </div>
+      ) : !selectedThread ? (
         <div className="flex-1 space-y-3 px-5">
           {threads.map((thread) => (
             <button
