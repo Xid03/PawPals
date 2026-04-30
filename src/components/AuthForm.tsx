@@ -1,13 +1,54 @@
 "use client";
 
 import { useState } from "react";
+import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Apple, Eye, Lock, Mail, PawPrint, UserRound } from "lucide-react";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { apiFetch, setToken, type PublicUser } from "@/lib/api-client";
 import catOneImage from "../../images/cat1.png";
 
 export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
   const [mode, setMode] = useState(initialMode);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
   const isLogin = mode === "login";
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const path = isLogin ? "/api/auth/login" : "/api/auth/register";
+      const usernameBase = email.split("@")[0]?.replace(/[^a-zA-Z0-9_]/g, "_") || "pawpal";
+      const payload = isLogin
+        ? { email, password }
+        : {
+            name,
+            email,
+            password,
+            username: `${usernameBase}_${Math.floor(Math.random() * 9000 + 1000)}`
+          };
+
+      const data = await apiFetch<{ user: PublicUser; token: string }>(path, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      setToken(data.token);
+      router.push("/home");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to sign in");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <section className="relative min-h-screen overflow-hidden bg-paw-radial">
@@ -45,13 +86,16 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
           />
         </div>
 
-        <form className="mt-[2px] space-y-[12px]">
+        <form className="mt-[2px] space-y-[12px]" onSubmit={handleSubmit}>
           {!isLogin ? (
             <label className="paw-input flex h-[43px] items-center gap-[14px] rounded-[11px] px-[17px]">
               <UserRound size={16} className="text-paw-cocoa/80" />
               <input
                 className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
                 placeholder="Name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required={!isLogin}
               />
             </label>
           ) : null}
@@ -61,6 +105,9 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
               className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
               placeholder="Email"
               type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
             />
           </label>
           <label className="paw-input flex h-[43px] items-center gap-[14px] rounded-[11px] px-[17px]">
@@ -68,16 +115,31 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
             <input
               className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
               placeholder="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
             />
-            <Eye size={16} className="text-paw-cocoa/70" />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              className="grid h-7 w-7 place-items-center rounded-full text-paw-cocoa/70"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              <Eye size={16} />
+            </button>
           </label>
           <PrimaryButton
-            href="/home"
+            type="submit"
             className="min-h-0 h-[43px] rounded-[18px] text-[14px]"
           >
-            {isLogin ? "Log In" : "Sign Up"}
+            {isSubmitting ? "One meowment..." : isLogin ? "Log In" : "Sign Up"}
           </PrimaryButton>
+          {error ? (
+            <p className="rounded-xl bg-paw-blush px-3 py-2 text-center text-[11px] font-extrabold text-paw-pink">
+              {error}
+            </p>
+          ) : null}
         </form>
 
         <div className="mx-auto my-[25px] flex w-[156px] items-center gap-[15px] text-[12px] font-extrabold text-paw-cocoa/70">
@@ -90,6 +152,7 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
           <button
             className="paw-card flex h-[40px] items-center justify-center rounded-[18px]"
             type="button"
+            onClick={() => setError("Google sign-in is not connected yet. Please use email and password.")}
             aria-label="Continue with Google"
           >
             <span className="text-[18px] font-black text-[#4285F4]">G</span>
@@ -97,6 +160,7 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
           <button
             className="paw-card flex h-[40px] items-center justify-center rounded-[18px]"
             type="button"
+            onClick={() => setError("Apple sign-in is not connected yet. Please use email and password.")}
             aria-label="Continue with Apple"
           >
             <Apple size={18} className="fill-paw-ink" />

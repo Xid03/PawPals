@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
-import type { vets } from "@/data/mockData";
 
-type Vet = (typeof vets)[number];
+export type DisplayVet = {
+  id: string;
+  name: string;
+  image: string;
+  distance: string;
+  rating: string | number;
+  reviews: number;
+  status: string;
+  closes: string;
+};
 
-export function VetCard({ vet }: { vet: Vet }) {
+export function VetCard({ vet }: { vet: DisplayVet }) {
   return (
     <Link href={`/vets/${vet.id}`} className="paw-card flex gap-3 rounded-3xl p-3">
       <img

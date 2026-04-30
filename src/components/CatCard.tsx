@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { MapPin } from "lucide-react";
-import type { cats } from "@/data/mockData";
 
-type Cat = (typeof cats)[number];
+export type DisplayCat = {
+  id: string;
+  name: string;
+  age: string;
+  breed: string;
+  gender?: string;
+  distance: string;
+  image: string;
+};
 
-export function CatCard({ cat, large = false }: { cat: Cat; large?: boolean }) {
+export function CatCard({ cat, large = false }: { cat: DisplayCat; large?: boolean }) {
   return (
     <Link
       href={`/cats/${cat.id}`}

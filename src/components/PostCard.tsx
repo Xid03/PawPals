@@ -1,9 +1,62 @@
+"use client";
+
+import { useState } from "react";
 import { Bookmark, Heart, MessageCircle, MoreHorizontal } from "lucide-react";
-import type { posts } from "@/data/mockData";
 
-type Post = (typeof posts)[number];
+export type DisplayPost = {
+  id: string;
+  user: string;
+  avatar: string;
+  time: string;
+  text: string;
+  image?: string;
+  likes: number;
+  comments: number;
+};
 
-export function PostCard({ post, compact = false }: { post: Post; compact?: boolean }) {
+export function PostCard({
+  post,
+  compact = false,
+  onLike,
+  onComment,
+  onSave
+}: {
+  post: DisplayPost;
+  compact?: boolean;
+  onLike?: () => void;
+  onComment?: () => void;
+  onSave?: () => void;
+}) {
+  const [likes, setLikes] = useState(post.likes);
+  const [saved, setSaved] = useState(false);
+  const [message, setMessage] = useState("");
+
+  function handleLike() {
+    if (onLike) {
+      onLike();
+      return;
+    }
+    setLikes((current) => current + 1);
+    setMessage("Liked");
+  }
+
+  function handleComment() {
+    if (onComment) {
+      onComment();
+      return;
+    }
+    setMessage("Open the community page to join the conversation.");
+  }
+
+  function handleSave() {
+    if (onSave) {
+      onSave();
+      return;
+    }
+    setSaved((current) => !current);
+    setMessage(saved ? "Removed from saved posts" : "Saved post");
+  }
+
   return (
     <article className="paw-card rounded-3xl p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -18,29 +71,37 @@ export function PostCard({ post, compact = false }: { post: Post; compact?: bool
             <p className="text-xs font-bold text-paw-cocoa/60">{post.time}</p>
           </div>
         </div>
-        <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-white/70" type="button">
+        <button
+          className="grid h-8 w-8 place-items-center rounded-full hover:bg-white/70"
+          type="button"
+          onClick={() => setMessage("Post options are ready for the API menu.")}
+          aria-label="Post options"
+        >
           <MoreHorizontal size={18} />
         </button>
       </div>
       <p className="mb-3 text-sm font-bold leading-relaxed text-paw-ink">{post.text}</p>
-      <img
-        src={post.image}
-        alt=""
-        className={`w-full rounded-2xl object-cover ${compact ? "h-40" : "h-56"}`}
-      />
+      {post.image ? (
+        <img
+          src={post.image}
+          alt=""
+          className={`w-full rounded-2xl object-cover ${compact ? "h-40" : "h-56"}`}
+        />
+      ) : null}
       <div className="mt-3 flex items-center justify-between text-paw-ink">
         <div className="flex gap-4 text-xs font-extrabold">
-          <button className="flex items-center gap-1" type="button">
-            <Heart size={18} /> {post.likes}
+          <button className="flex items-center gap-1" type="button" onClick={handleLike}>
+            <Heart size={18} className={likes > post.likes ? "fill-paw-pink text-paw-pink" : ""} /> {likes}
           </button>
-          <button className="flex items-center gap-1" type="button">
+          <button className="flex items-center gap-1" type="button" onClick={handleComment}>
             <MessageCircle size={18} /> {post.comments}
           </button>
         </div>
-        <button type="button" aria-label="Save post">
-          <Bookmark size={18} />
+        <button type="button" aria-label="Save post" onClick={handleSave}>
+          <Bookmark size={18} className={saved ? "fill-paw-pink text-paw-pink" : ""} />
         </button>
       </div>
+      {message ? <p className="mt-3 text-xs font-extrabold text-paw-cocoa/70">{message}</p> : null}
     </article>
   );
 }

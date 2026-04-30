@@ -4,11 +4,12 @@ type StoryBubbleProps = {
   name: string;
   image?: string;
   add?: boolean;
+  onClick?: () => void;
 };
 
-export function StoryBubble({ name, image, add = false }: StoryBubbleProps) {
+export function StoryBubble({ name, image, add = false, onClick }: StoryBubbleProps) {
   return (
-    <button type="button" className="w-16 shrink-0 text-center">
+    <button type="button" className="w-16 shrink-0 text-center" onClick={onClick}>
       <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-paw-lavender to-paw-pink p-1 shadow-soft">
         {add ? (
           <span className="grid h-full w-full place-items-center rounded-full bg-paw-lavender text-white">

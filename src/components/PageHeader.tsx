@@ -10,6 +10,7 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, subtitle, backHref, action }: PageHeaderProps) {
   const ActionIcon = action === "close" ? X : action === "bell" ? Bell : Search;
+  const actionHref = action === "close" ? "/home" : action === "bell" ? "/profile" : "/community";
 
   return (
     <header className="flex items-center justify-between px-5 pb-4 pt-6">
@@ -33,13 +34,13 @@ export function PageHeader({ title, subtitle, backHref, action }: PageHeaderProp
         </div>
       </div>
       {action ? (
-        <button
-          type="button"
+        <Link
+          href={actionHref}
           className="grid h-10 w-10 place-items-center rounded-full bg-white/55 text-paw-ink"
           aria-label={action}
         >
           <ActionIcon size={19} />
-        </button>
+        </Link>
       ) : null}
     </header>
   );
