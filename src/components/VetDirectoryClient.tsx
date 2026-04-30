@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Filter, PawPrint, Search } from "lucide-react";
+import { Filter, PawPrint, Search, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PageHeader } from "@/components/PageHeader";
 import { VetCard, type DisplayVet } from "@/components/VetCard";
@@ -30,15 +30,25 @@ function mapVet(vet: ApiVet): DisplayVet {
 
 export function VetDirectoryClient() {
   const [query, setQuery] = useState("");
-  const [vets, setVets] = useState<DisplayVet[]>(mockVets);
+  const [apiVets, setApiVets] = useState<ApiVet[]>([]);
   const [openOnly, setOpenOnly] = useState(false);
+  const [city, setCity] = useState("All");
+  const [service, setService] = useState("All");
+  const [minRating, setMinRating] = useState("0");
+  const [showFilters, setShowFilters] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [status, setStatus] = useState("");
   const [subtitle, setSubtitle] = useState("Malaysia");
 
   useEffect(() => {
-    const params = new URLSearchParams({ limit: "20" });
+    const params = new URLSearchParams({ limit: "50" });
     const savedLocation = window.localStorage.getItem("pawpals_location");
 
     if (query) params.set("q", query);
+    if (city !== "All") params.set("city", city);
+    if (service !== "All") params.set("service", service);
+    if (minRating !== "0") params.set("minRating", minRating);
+    if (openOnly) params.set("open", "true");
     if (savedLocation) {
       try {
         const location = JSON.parse(savedLocation) as { lat: number; lng: number };
@@ -52,10 +62,52 @@ export function VetDirectoryClient() {
 
     apiFetch<ApiVet[]>(`/api/vets?${params.toString()}`)
       .then((items) => {
-        if (items.length) setVets(items.map(mapVet));
+        setHasLoaded(true);
+        setApiVets(items);
+        setStatus(items.length ? "" : "No clinics found. Try another city or service.");
       })
-      .catch(() => undefined);
-  }, [query]);
+      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load vets"));
+  }, [city, minRating, openOnly, query, service]);
+
+  const cities = [
+    "All",
+    "Kuala Lumpur",
+    "Petaling Jaya",
+    "Subang Jaya",
+    "Shah Alam",
+    "Klang",
+    "Putrajaya",
+    "Johor Bahru",
+    "Penang",
+    "Ipoh",
+    "Alor Setar",
+    "Kangar",
+    "Kota Bharu",
+    "Kuala Terengganu",
+    "Kuantan",
+    "Melaka",
+    "Seremban",
+    "Kota Kinabalu",
+    "Kuching",
+    "Labuan"
+  ];
+  const services = [
+    ["All", "All Services"],
+    ["CHECKUP", "Checkup"],
+    ["VACCINATION", "Vaccination"],
+    ["DENTAL", "Dental"],
+    ["SURGERY", "Surgery"],
+    ["EMERGENCY", "Emergency"]
+  ];
+  const visibleVets = (hasLoaded ? apiVets.map(mapVet) : mockVets).filter((vet) => !openOnly || vet.status === "Open");
+  const activeFilterCount = [openOnly, city !== "All", service !== "All", minRating !== "0"].filter(Boolean).length;
+
+  function clearFilters() {
+    setOpenOnly(false);
+    setCity("All");
+    setService("All");
+    setMinRating("0");
+  }
 
   return (
     <section className="min-h-screen bg-paw-radial pb-28">
@@ -71,16 +123,98 @@ export function VetDirectoryClient() {
           />
           <button
             type="button"
-            onClick={() => setOpenOnly((current) => !current)}
-            className={`grid h-9 w-9 place-items-center rounded-full ${openOnly ? "bg-paw-pink text-white" : "text-paw-cocoa"}`}
-            aria-label="Toggle open clinics filter"
+            onClick={() => setShowFilters((current) => !current)}
+            className={`relative grid h-9 w-9 place-items-center rounded-full ${activeFilterCount ? "bg-paw-pink text-white" : "text-paw-cocoa"}`}
+            aria-label="Open vet filters"
           >
             <Filter size={18} />
+            {activeFilterCount ? (
+              <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-paw-lavender text-[9px] font-black text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
           </button>
         </label>
 
+        {showFilters ? (
+          <section className="paw-card mb-4 rounded-3xl p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-black text-paw-ink">Filter Clinics</h2>
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="grid h-8 w-8 place-items-center rounded-full bg-white/70 text-paw-ink"
+                aria-label="Close filters"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setOpenOnly((current) => !current)}
+              className={`mb-3 h-10 rounded-xl px-4 text-sm font-extrabold ${openOnly ? "bg-paw-pink text-white" : "bg-white/70 text-paw-cocoa"}`}
+            >
+              Open now
+            </button>
+
+            <label className="mb-3 block">
+              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">City</span>
+              <select
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+                className="h-11 w-full rounded-xl border border-paw-cocoa/10 bg-white/80 px-3 text-sm font-bold outline-none"
+              >
+                {cities.map((item) => (
+                  <option key={item} value={item}>
+                    {item === "All" ? "All Malaysia" : item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mb-3 block">
+              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">Service</span>
+              <select
+                value={service}
+                onChange={(event) => setService(event.target.value)}
+                className="h-11 w-full rounded-xl border border-paw-cocoa/10 bg-white/80 px-3 text-sm font-bold outline-none"
+              >
+                {services.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mb-4 block">
+              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">Minimum rating</span>
+              <select
+                value={minRating}
+                onChange={(event) => setMinRating(event.target.value)}
+                className="h-11 w-full rounded-xl border border-paw-cocoa/10 bg-white/80 px-3 text-sm font-bold outline-none"
+              >
+                <option value="0">Any rating</option>
+                <option value="4">4.0+</option>
+                <option value="4.5">4.5+</option>
+                <option value="4.8">4.8+</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-10 w-full rounded-xl bg-white/75 text-sm font-extrabold text-paw-cocoa"
+            >
+              Clear filters
+            </button>
+          </section>
+        ) : null}
+
+        {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
         <div className="space-y-3">
-          {vets.filter((vet) => !openOnly || vet.status === "Open").map((vet) => (
+          {visibleVets.map((vet) => (
             <VetCard key={vet.id} vet={vet} />
           ))}
         </div>

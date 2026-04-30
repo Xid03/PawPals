@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { seedMalaysiaVets } from "./seed-malaysia-vets";
 
 const prisma = new PrismaClient();
 
@@ -446,6 +447,7 @@ async function main() {
     })
   ]);
   await prisma.favoriteVet.create({ data: { vetId: vet.id, userId: maya.id } });
+  await seedMalaysiaVets(prisma);
 
   await prisma.event.createMany({
     data: [
