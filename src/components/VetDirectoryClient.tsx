@@ -9,11 +9,18 @@ import { apiFetch, type ApiVet } from "@/lib/api-client";
 import { vets as mockVets } from "@/data/mockData";
 
 function mapVet(vet: ApiVet): DisplayVet {
+  const distance =
+    typeof vet.distanceKm === "number"
+      ? vet.distanceKm < 1
+        ? `${Math.round(vet.distanceKm * 1000)} m away`
+        : `${vet.distanceKm} km away`
+      : vet.city;
+
   return {
     id: vet.id,
     name: vet.name,
     image: vet.imageUrl ?? mockVets[0].image,
-    distance: vet.city,
+    distance,
     rating: vet.rating.toFixed(1),
     reviews: vet._count?.favorites ?? 0,
     status: vet.isOpen ? "Open" : "Closed",
@@ -25,9 +32,25 @@ export function VetDirectoryClient() {
   const [query, setQuery] = useState("");
   const [vets, setVets] = useState<DisplayVet[]>(mockVets);
   const [openOnly, setOpenOnly] = useState(false);
+  const [subtitle, setSubtitle] = useState("Malaysia");
 
   useEffect(() => {
-    apiFetch<ApiVet[]>(`/api/vets?${query ? `q=${encodeURIComponent(query)}&` : ""}limit=20`)
+    const params = new URLSearchParams({ limit: "20" });
+    const savedLocation = window.localStorage.getItem("pawpals_location");
+
+    if (query) params.set("q", query);
+    if (savedLocation) {
+      try {
+        const location = JSON.parse(savedLocation) as { lat: number; lng: number };
+        params.set("lat", String(location.lat));
+        params.set("lng", String(location.lng));
+        setSubtitle("Malaysia - nearest first");
+      } catch {
+        window.localStorage.removeItem("pawpals_location");
+      }
+    }
+
+    apiFetch<ApiVet[]>(`/api/vets?${params.toString()}`)
       .then((items) => {
         if (items.length) setVets(items.map(mapVet));
       })
@@ -36,7 +59,7 @@ export function VetDirectoryClient() {
 
   return (
     <section className="min-h-screen bg-paw-radial pb-28">
-      <PageHeader title="Vet Directory" subtitle="New York, USA" backHref="/home" action="search" />
+      <PageHeader title="Vet Directory" subtitle={subtitle} backHref="/home" action="search" />
       <div className="px-5">
         <label className="paw-input mb-4 flex h-14 items-center gap-3 rounded-2xl px-4">
           <Search size={18} className="text-paw-cocoa" />
@@ -62,17 +85,24 @@ export function VetDirectoryClient() {
           ))}
         </div>
 
-        <section className="mt-5 overflow-hidden rounded-3xl bg-gradient-to-br from-paw-lavender to-paw-pink p-5 text-white shadow-soft">
+        <button
+          type="button"
+          onClick={() => {
+            setQuery("Animal Medical Centre");
+            setOpenOnly(false);
+          }}
+          className="mt-5 w-full overflow-hidden rounded-3xl bg-gradient-to-br from-paw-lavender to-paw-pink p-5 text-left text-white shadow-soft"
+        >
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-black">Emergency?</h2>
-              <p className="text-sm font-bold">Find 24/7 Pet Hospitals</p>
+              <p className="text-sm font-bold">Find 24/7 Pet Hospitals in Malaysia</p>
             </div>
             <div className="grid h-24 w-24 place-items-center rounded-full bg-white/30">
               <PawPrint className="fill-white/30" size={54} />
             </div>
           </div>
-        </section>
+        </button>
       </div>
       <BottomNav />
     </section>

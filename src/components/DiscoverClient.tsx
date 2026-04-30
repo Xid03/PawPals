@@ -6,7 +6,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CatCard, type DisplayCat } from "@/components/CatCard";
 import { PageHeader } from "@/components/PageHeader";
 import { TagChip } from "@/components/TagChip";
-import { apiFetch, ageLabel, catImage, type ApiCat } from "@/lib/api-client";
+import { apiFetch, ageLabel, catImage, distanceLabel, type ApiCat } from "@/lib/api-client";
 import { cats as mockCats } from "@/data/mockData";
 
 function mapCat(cat: ApiCat): DisplayCat {
@@ -16,7 +16,7 @@ function mapCat(cat: ApiCat): DisplayCat {
     gender: cat.gender,
     breed: cat.breed,
     age: ageLabel(cat.ageMonths),
-    distance: cat.city ?? "Nearby",
+    distance: distanceLabel(cat),
     image: catImage(cat, mockCats[0].image)
   };
 }
@@ -28,11 +28,32 @@ export function DiscoverClient() {
   const [message, setMessage] = useState("Playdate-ready cats near you");
 
   useEffect(() => {
-    apiFetch<ApiCat[]>("/api/cats/nearby?limit=20")
+    const searchParams = new URLSearchParams(window.location.search);
+    const lat = searchParams.get("lat");
+    const lng = searchParams.get("lng");
+    const savedLocation = window.localStorage.getItem("pawpals_location");
+    let query = "limit=20";
+
+    if (lat && lng) {
+      query = `lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radiusKm=50&limit=20`;
+      setMessage("Using your current location");
+    } else if (savedLocation) {
+      try {
+        const location = JSON.parse(savedLocation) as { lat: number; lng: number };
+        query = `lat=${encodeURIComponent(location.lat)}&lng=${encodeURIComponent(location.lng)}&radiusKm=50&limit=20`;
+        setMessage("Using your saved location");
+      } catch {
+        window.localStorage.removeItem("pawpals_location");
+      }
+    }
+
+    apiFetch<ApiCat[]>(`/api/cats/nearby?${query}`)
       .then((items) => {
         if (items.length) {
           setCats(items.map(mapCat));
           setIndex(0);
+          const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
+          setMessage(exactNearby ? "Nearest PawPals are sorted by distance" : "No close cats yet, showing nearest PawPals");
         }
       })
       .catch(() => undefined);

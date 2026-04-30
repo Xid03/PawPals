@@ -6,7 +6,6 @@ import {
   ShieldPlus,
   Stethoscope,
   Syringe,
-  Utensils,
   Users
 } from "lucide-react";
 import behaviourIcon from "../../images/behaviourIcon.png";
@@ -248,56 +247,62 @@ export const stories = [
 
 export const vets = [
   {
-    id: "paws-claws",
-    name: "Paws & Claws Vet Clinic",
-    distance: "0.8 km away",
+    id: "animal-medical-centre-kl",
+    name: "Animal Medical Centre",
+    distance: "Kuala Lumpur",
     rating: "4.8",
-    reviews: 120,
+    reviews: 630,
     status: "Open",
-    closes: "Closes 8 PM",
+    closes: "24-hour emergency",
+    phone: "+60340426742",
+    website: "https://animalhospital.com.my/",
     image:
       "https://images.unsplash.com/photo-1576765607924-6f0b04cf8f6d?auto=format&fit=crop&w=900&q=80",
     about:
-      "Compassionate care for your furry family members, from everyday checkups to urgent support.",
+      "Referral veterinary hospital at Wisma Medivet, Kuala Lumpur, with consultation and emergency services.",
     services: [
       { label: "Checkup", icon: Stethoscope },
       { label: "Vaccination", icon: Syringe },
       { label: "Dental", icon: ShieldPlus },
+      { label: "Emergency", icon: Hospital }
+    ]
+  },
+  {
+    id: "gasing-veterinary-hospital",
+    name: "Gasing Veterinary Hospital",
+    distance: "Petaling Jaya",
+    rating: "4.7",
+    reviews: 1325,
+    status: "Open",
+    closes: "Mon-Sat 10 AM-8 PM",
+    phone: "+60377823553",
+    website: "https://www.gasingvet.com",
+    image:
+      "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
+    about: "Veterinary hospital in Gasing Indah, Petaling Jaya, offering small animal care.",
+    services: [
+      { label: "Checkup", icon: Stethoscope },
+      { label: "Vaccination", icon: Syringe },
       { label: "Surgery", icon: Hospital }
     ]
   },
   {
-    id: "meowcare",
-    name: "MeowCare Veterinary",
-    distance: "1.3 km away",
-    rating: "4.7",
+    id: "vpac-kuchai-lama",
+    name: "Vets for Pets Animal Clinic",
+    distance: "Kuchai Lama",
+    rating: "4.6",
     reviews: 98,
     status: "Open",
-    closes: "Closes 7 PM",
-    image:
-      "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=900&q=80",
-    about: "Friendly neighborhood clinic for preventive care and nutrition advice.",
-    services: [
-      { label: "Checkup", icon: Stethoscope },
-      { label: "Food", icon: Utensils },
-      { label: "Vaccines", icon: Syringe }
-    ]
-  },
-  {
-    id: "happy-tails",
-    name: "Happy Tails Animal Hospital",
-    distance: "2.1 km away",
-    rating: "4.6",
-    reviews: 76,
-    status: "Open",
-    closes: "Closes 9 PM",
+    closes: "Mon-Fri 10 AM-7 PM",
+    phone: "+60179835980",
+    website: "https://www.vpac.com.my/",
     image:
       "https://images.unsplash.com/photo-1584797345215-5fc2f911e1bc?auto=format&fit=crop&w=900&q=80",
-    about: "Full service pet hospital with extended evening care.",
+    about: "Full-service small animal and exotic veterinary clinic in Kuchai Lama, Kuala Lumpur.",
     services: [
-      { label: "Emergency", icon: Hospital },
       { label: "Checkup", icon: Stethoscope },
-      { label: "Dental", icon: ShieldPlus }
+      { label: "Dental", icon: ShieldPlus },
+      { label: "Surgery", icon: Hospital }
     ]
   }
 ];

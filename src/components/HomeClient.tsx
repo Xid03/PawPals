@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, MapPin, PawPrint, Search } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
-import { apiFetch, ageLabel, catImage, type ApiCat, type ApiPost } from "@/lib/api-client";
+import { apiFetch, ageLabel, catImage, distanceLabel, type ApiCat, type ApiPost } from "@/lib/api-client";
 import { currentUser, cats as mockCats, posts as mockPosts, quickActions } from "@/data/mockData";
 
 function mapPost(post: ApiPost): DisplayPost {
@@ -22,9 +23,27 @@ function mapPost(post: ApiPost): DisplayPost {
 }
 
 export function HomeClient() {
+  const router = useRouter();
   const [cats, setCats] = useState(mockCats);
   const [posts, setPosts] = useState<DisplayPost[]>(mockPosts);
   const [userName, setUserName] = useState("Cat Lover");
+  const [nearbyStatus, setNearbyStatus] = useState("Tap Explore to use your location");
+  const [isLocating, setIsLocating] = useState(false);
+
+  function mapCat(cat: ApiCat) {
+    return {
+      id: cat.id,
+      name: cat.name,
+      gender: cat.gender,
+      breed: cat.breed,
+      age: ageLabel(cat.ageMonths),
+      distance: distanceLabel(cat),
+      image: catImage(cat, mockCats[0].image),
+      about: cat.description ?? "",
+      personality: cat.personalityTags,
+      lookingFor: cat.lookingFor
+    };
+  }
 
   useEffect(() => {
     apiFetch<{ user: { name: string; avatarUrl?: string | null } }>("/api/auth/me")
@@ -34,23 +53,20 @@ export function HomeClient() {
     apiFetch<ApiCat[]>("/api/cats?limit=4")
       .then((items) => {
         if (items.length) {
-          setCats(
-            items.map((cat) => ({
-              id: cat.id,
-              name: cat.name,
-              gender: cat.gender,
-              breed: cat.breed,
-              age: ageLabel(cat.ageMonths),
-              distance: cat.city ?? "Nearby",
-              image: catImage(cat, mockCats[0].image),
-              about: cat.description ?? "",
-              personality: cat.personalityTags,
-              lookingFor: cat.lookingFor
-            }))
-          );
+          setCats(items.map(mapCat));
         }
       })
       .catch(() => undefined);
+
+    const savedLocation = window.localStorage.getItem("pawpals_location");
+    if (savedLocation) {
+      try {
+        const location = JSON.parse(savedLocation) as { lat: number; lng: number };
+        void loadNearby(location.lat, location.lng, false);
+      } catch {
+        window.localStorage.removeItem("pawpals_location");
+      }
+    }
 
     apiFetch<ApiPost[]>("/api/feed?mode=for-you&limit=1")
       .then((items) => {
@@ -60,6 +76,53 @@ export function HomeClient() {
   }, []);
 
   const avatarStack = useMemo(() => cats.slice(0, 4), [cats]);
+
+  async function loadNearby(lat: number, lng: number, updateStatus = true) {
+    const items = await apiFetch<ApiCat[]>(
+      `/api/cats/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radiusKm=50&limit=4`
+    );
+    if (items.length) {
+      setCats(items.map(mapCat));
+      if (updateStatus) {
+        const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
+        setNearbyStatus(exactNearby ? "Sorted by your current location" : "No close cats yet, showing nearest PawPals");
+      }
+    } else if (updateStatus) {
+      setNearbyStatus("No nearby cats found yet");
+    }
+  }
+
+  function exploreNearby() {
+    if (!navigator.geolocation) {
+      setNearbyStatus("Location is not available in this browser");
+      router.push("/discover");
+      return;
+    }
+
+    setIsLocating(true);
+    setNearbyStatus("Finding nearby PawPals...");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        window.localStorage.setItem("pawpals_location", JSON.stringify({ lat, lng }));
+        try {
+          await loadNearby(lat, lng);
+        } catch (error) {
+          setNearbyStatus(error instanceof Error ? error.message : "Could not load nearby cats");
+        } finally {
+          setIsLocating(false);
+          router.push(`/discover?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+        }
+      },
+      () => {
+        setIsLocating(false);
+        setNearbyStatus("Location permission was not enabled");
+        router.push("/discover");
+      },
+      { enableHighAccuracy: true, maximumAge: 5 * 60 * 1000, timeout: 10000 }
+    );
+  }
 
   return (
     <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
@@ -108,13 +171,16 @@ export function HomeClient() {
             />
           ))}
         </div>
-        <p className="mb-3 text-xs font-bold">{cats.length} cats ready to meet</p>
-        <Link
-          href="/discover"
+        <p className="mb-1 text-xs font-bold">{cats.length} cats ready to meet</p>
+        <p className="mb-3 text-[11px] font-bold text-white/80">{nearbyStatus}</p>
+        <button
+          type="button"
+          onClick={exploreNearby}
+          disabled={isLocating}
           className="mx-auto inline-flex items-center gap-2 rounded-full bg-paw-pink px-7 py-3 text-sm font-black shadow-soft"
         >
-          Explore <PawPrint size={17} />
-        </Link>
+          {isLocating ? "Locating..." : "Explore"} <PawPrint size={17} />
+        </button>
       </section>
 
       <section className="mb-6 grid grid-cols-2 gap-3">

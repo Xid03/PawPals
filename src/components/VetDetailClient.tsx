@@ -35,6 +35,8 @@ export function VetDetailClient({ id }: { id: string }) {
     status: vet?.isOpen === false ? "Closed" : "Open",
     closes: vet?.openHours ?? fallback.closes,
     about: vet?.description ?? fallback.about,
+    phone: fallback.phone,
+    website: fallback.website,
     services: vet?.services?.map((service) => serviceLabel(service.type)) ?? fallback.services.map((service) => service.label)
   };
 
@@ -64,15 +66,19 @@ export function VetDetailClient({ id }: { id: string }) {
   }
 
   function openVetAction(action: "call" | "directions" | "website") {
+    const query = encodeURIComponent(`${display.name} ${display.address} Malaysia`);
     if (action === "call") {
-      window.location.href = "tel:+18005551234";
+      if (display.phone) {
+        window.location.href = `tel:${display.phone}`;
+        return;
+      }
+      window.open(`https://www.google.com/search?q=${query}+phone`, "_blank", "noopener,noreferrer");
       return;
     }
-    const query = encodeURIComponent(`${display.name} ${display.address}`);
     const url =
       action === "directions"
         ? `https://www.google.com/maps/search/?api=1&query=${query}`
-        : `https://www.google.com/search?q=${query}`;
+        : display.website ?? `https://www.google.com/search?q=${query}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -98,6 +104,7 @@ export function VetDetailClient({ id }: { id: string }) {
           <span className="text-emerald-600">{display.status}</span>
           <span>{display.closes}</span>
         </div>
+        <p className="mt-2 text-xs font-bold leading-relaxed text-paw-cocoa/70">{display.address}</p>
         <p className="mt-2 flex items-center gap-1 text-sm font-black text-paw-cocoa">
           <Star size={16} className="fill-[#FFB23F] text-[#FFB23F]" />
           {display.rating} ({display.reviews} reviews)

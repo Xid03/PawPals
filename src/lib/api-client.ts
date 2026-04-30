@@ -27,6 +27,7 @@ export type ApiCat = {
   lookingFor: string[];
   city?: string | null;
   description?: string | null;
+  distanceKm?: number | null;
   photos?: { url: string }[];
   owner?: PublicUser;
 };
@@ -52,6 +53,9 @@ export type ApiVet = {
   imageUrl?: string | null;
   address: string;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  distanceKm?: number | null;
   rating: number;
   isOpen: boolean;
   openHours?: string | null;
@@ -157,4 +161,12 @@ export function ageLabel(ageMonths: number) {
 
 export function catImage(cat: ApiCat, fallback: string) {
   return cat.photos?.[0]?.url ?? fallback;
+}
+
+export function distanceLabel(cat: ApiCat) {
+  if (typeof cat.distanceKm === "number") {
+    return cat.distanceKm < 1 ? `${Math.round(cat.distanceKm * 1000)} m away` : `${cat.distanceKm} km away`;
+  }
+
+  return cat.city ?? "Nearby";
 }
