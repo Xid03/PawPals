@@ -13,6 +13,7 @@ export type PublicUser = {
   name: string;
   username: string;
   email?: string;
+  bio?: string | null;
   avatarUrl?: string | null;
   city?: string | null;
 };

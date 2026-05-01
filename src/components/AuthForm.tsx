@@ -3,10 +3,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Apple, Eye, Lock, Mail, PawPrint, UserRound } from "lucide-react";
-import { PrimaryButton } from "@/components/PrimaryButton";
+import { Apple, Eye, Heart, Lock, Mail, PawPrint, Sparkles, UserRound } from "lucide-react";
 import { apiFetch, setToken, type PublicUser } from "@/lib/api-client";
-import catOneImage from "../../images/cat1.png";
+import catLoginImage from "../../images/catLogin.png";
+import loginBg from "../../images/loginBg.png";
 
 export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
   const [mode, setMode] = useState(initialMode);
@@ -51,123 +51,148 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
   }
 
   return (
-    <section className="relative min-h-screen overflow-hidden bg-paw-radial">
-      <PawPrint className="absolute right-[16px] top-[2px] text-paw-peach/80" size={16} />
-      <PawPrint className="absolute right-[40px] top-[31px] text-paw-peach/80" size={18} />
-      <PawPrint className="absolute right-[12px] top-[88px] text-paw-peach/80" size={17} />
-      <PawPrint className="absolute left-[91px] top-[92px] text-paw-rose/70" size={17} />
-      <PawPrint className="absolute left-[96px] top-[155px] text-paw-peach/70" size={16} />
+    <section
+      className="relative min-h-screen overflow-hidden px-7 py-9"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,248,239,0.36), rgba(255,248,239,0.24)), url(${loginBg.src})`,
+        backgroundPosition: "center",
+        backgroundSize: "cover"
+      }}
+    >
+      <PawPrint className="absolute left-16 top-20 h-12 w-12 rotate-[-18deg] fill-paw-pink/10 text-paw-pink/10" />
+      <PawPrint className="absolute right-8 top-12 h-11 w-11 rotate-12 fill-paw-pink/10 text-paw-pink/10" />
+      <PawPrint className="absolute right-9 top-[210px] h-12 w-12 rotate-[18deg] fill-paw-pink/10 text-paw-pink/10" />
+      <Heart className="absolute left-[38%] top-[120px] h-7 w-7 fill-paw-pink/35 text-paw-pink/35" />
+      <Sparkles className="absolute right-[38%] top-[150px] h-9 w-9 fill-[#f6c85b] text-[#f6c85b]" />
 
-      <div className="relative mx-auto min-h-screen w-full max-w-[236px] pb-[44px] pt-[27px]">
-        <h1 className="text-[26px] font-black leading-[31px] text-paw-ink">
+      <div className="relative mx-auto flex min-h-[calc(100vh-72px)] w-full max-w-[360px] flex-col justify-center">
+        <div className="pt-4">
+          <h1 className="text-[54px] font-black leading-[1.02] tracking-normal text-paw-ink">
           {isLogin ? (
             <>
               Welcome
               <br />
-              Back!
+              <span className="text-paw-pink">Back!</span>{" "}
+              <PawPrint size={40} className="inline -translate-y-1 fill-paw-pink/20 text-paw-pink" />
             </>
           ) : (
             <>
               Welcome
               <br />
-              Cat Lover!
+              <span className="text-paw-pink">PawPal!</span>
             </>
           )}
-        </h1>
-        <p className="mt-[9px] text-[13px] font-extrabold leading-none text-paw-cocoa/80">
-          {isLogin ? "Log in to your cozy corner" : "Create your account"}
-        </p>
+          </h1>
+          <p className="mt-7 text-xl font-extrabold leading-none text-paw-cocoa/85">
+            {isLogin ? "Log in to your cozy corner" : "Create your cozy corner"}
+          </p>
+        </div>
 
-        <div className="ml-auto -mt-[2px] h-[86px] w-[142px] overflow-hidden">
+        <div className="relative ml-auto -mt-1 h-[154px] w-[235px]">
+          <span className="absolute bottom-3 left-5 h-12 w-44 rounded-[50%] bg-paw-pink/18 blur-[1px]" />
           <img
-            src={catOneImage.src}
+            src={catLoginImage.src}
             alt=""
-            className="h-full w-full object-cover object-center"
+            className="relative h-full w-full object-contain object-bottom"
           />
         </div>
 
-        <form className="mt-[2px] space-y-[12px]" onSubmit={handleSubmit}>
+        <form className="mt-3 space-y-4" onSubmit={handleSubmit}>
           {!isLogin ? (
-            <label className="paw-input flex h-[43px] items-center gap-[14px] rounded-[11px] px-[17px]">
-              <UserRound size={16} className="text-paw-cocoa/80" />
-              <input
-                className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
-                placeholder="Name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required={!isLogin}
-              />
+            <label className="flex h-[84px] items-center gap-5 rounded-[26px] border border-paw-cocoa/10 bg-white/84 px-6 shadow-soft backdrop-blur">
+              <UserRound size={28} className="shrink-0 text-paw-pink" />
+              <span className="flex min-w-0 flex-1 flex-col gap-2">
+                <span className="text-sm font-black text-paw-cocoa/75">Name</span>
+                <input
+                  className="w-full bg-transparent text-xl font-bold outline-none placeholder:text-paw-cocoa/45"
+                  placeholder="Enter your name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required={!isLogin}
+                />
+              </span>
             </label>
           ) : null}
-          <label className="paw-input flex h-[43px] items-center gap-[14px] rounded-[11px] px-[17px]">
-            <Mail size={16} className="text-paw-cocoa/80" />
-            <input
-              className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
-              placeholder="Email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
+          <label className="flex h-[84px] items-center gap-5 rounded-[26px] border border-paw-cocoa/10 bg-white/84 px-6 shadow-soft backdrop-blur">
+            <Mail size={28} className="shrink-0 text-paw-pink" />
+            <span className="flex min-w-0 flex-1 flex-col gap-2">
+              <span className="text-sm font-black text-paw-cocoa/75">Email</span>
+              <input
+                className="w-full bg-transparent text-xl font-bold outline-none placeholder:text-paw-cocoa/45"
+                placeholder="Enter your email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </span>
           </label>
-          <label className="paw-input flex h-[43px] items-center gap-[14px] rounded-[11px] px-[17px]">
-            <Lock size={16} className="text-paw-cocoa/80" />
-            <input
-              className="w-full bg-transparent text-[12px] font-extrabold outline-none placeholder:text-paw-cocoa/55"
-              placeholder="Password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
+          <label className="flex h-[84px] items-center gap-5 rounded-[26px] border border-paw-cocoa/10 bg-white/84 px-6 shadow-soft backdrop-blur">
+            <Lock size={28} className="shrink-0 text-paw-pink" />
+            <span className="flex min-w-0 flex-1 flex-col gap-2">
+              <span className="text-sm font-black text-paw-cocoa/75">Password</span>
+              <input
+                className="w-full bg-transparent text-xl font-bold outline-none placeholder:text-paw-cocoa/45"
+                placeholder="Enter your password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </span>
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
-              className="grid h-7 w-7 place-items-center rounded-full text-paw-cocoa/70"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-paw-cocoa/70"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              <Eye size={16} />
+              <Eye size={26} />
             </button>
           </label>
-          <PrimaryButton
+          <button
             type="submit"
-            className="min-h-0 h-[43px] rounded-[18px] text-[14px]"
+            className="mt-6 inline-flex h-[72px] w-full items-center justify-center gap-3 rounded-[30px] border border-white/70 bg-gradient-to-r from-paw-pink to-paw-rose text-2xl font-black text-white shadow-[0_14px_30px_rgba(247,101,137,0.28)] disabled:opacity-70"
+            disabled={isSubmitting}
           >
-            {isSubmitting ? "One meowment..." : isLogin ? "Log In" : "Sign Up"}
-          </PrimaryButton>
+            {isSubmitting ? "Please wait..." : isLogin ? "Log In" : "Sign Up"}
+            <PawPrint size={30} className="fill-white/25" />
+          </button>
           {error ? (
-            <p className="rounded-xl bg-paw-blush px-3 py-2 text-center text-[11px] font-extrabold text-paw-pink">
+            <p className="rounded-xl bg-paw-blush px-3 py-2 text-center text-xs font-extrabold text-paw-pink">
               {error}
             </p>
           ) : null}
         </form>
 
-        <div className="mx-auto my-[25px] flex w-[156px] items-center gap-[15px] text-[12px] font-extrabold text-paw-cocoa/70">
+        <div className="mx-auto my-7 flex w-[230px] items-center gap-5 text-lg font-extrabold text-paw-cocoa/70">
           <span className="h-px flex-1 bg-paw-cocoa/15" />
+          <PawPrint size={22} className="fill-paw-cocoa/15 text-paw-cocoa/60" />
           or
           <span className="h-px flex-1 bg-paw-cocoa/15" />
         </div>
 
-        <div className="grid grid-cols-2 gap-[9px]">
+        <div className="grid grid-cols-2 gap-4">
           <button
-            className="paw-card flex h-[40px] items-center justify-center rounded-[18px]"
+            className="flex h-[62px] items-center justify-center gap-3 rounded-[22px] bg-white/84 text-xl font-black text-paw-ink shadow-soft backdrop-blur"
             type="button"
             onClick={() => setError("Google sign-in is not connected yet. Please use email and password.")}
             aria-label="Continue with Google"
           >
-            <span className="text-[18px] font-black text-[#4285F4]">G</span>
+            <span className="text-[24px] font-black text-[#4285F4]">G</span>
+            Google
           </button>
           <button
-            className="paw-card flex h-[40px] items-center justify-center rounded-[18px]"
+            className="flex h-[62px] items-center justify-center gap-3 rounded-[22px] bg-white/84 text-xl font-black text-paw-ink shadow-soft backdrop-blur"
             type="button"
             onClick={() => setError("Apple sign-in is not connected yet. Please use email and password.")}
             aria-label="Continue with Apple"
           >
-            <Apple size={18} className="fill-paw-ink" />
+            <Apple size={25} className="fill-paw-ink" />
+            Apple
           </button>
         </div>
 
-        <p className="mt-[50px] text-center text-[12px] font-extrabold text-paw-cocoa/75">
+        <p className="mt-10 text-center text-xl font-extrabold text-paw-cocoa/75">
           {isLogin ? "New to PawPals?" : "Already have an account?"}{" "}
           <button
             className="font-black text-paw-pink"

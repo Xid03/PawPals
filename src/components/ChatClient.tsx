@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Camera, CirclePlus, Image as ImageIcon, PawPrint, X } from "lucide-react";
+import { ArrowLeft, Bell, Camera, ChevronRight, CirclePlus, Heart, Home, Image as ImageIcon, PawPrint, Search, SlidersHorizontal, Smile, Sparkles, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { CatMascot } from "@/components/CatMascot";
 import { apiFetch, getToken, isGuestMode, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
 import { cats, chatMessages } from "@/data/mockData";
+import bgChat from "../../images/bgChat.png";
 import loginIcon from "../../images/loginIcon.png";
+import profile1 from "../../images/profile1.png";
 
 type DisplayMessage = {
   id: string;
@@ -105,6 +106,15 @@ function fallbackAvatar(user?: PublicUser) {
   return user?.avatarUrl || cats[0].image;
 }
 
+function threadTone(index: number) {
+  const tones = [
+    { paw: "text-paw-pink", pill: "bg-paw-blush text-paw-cocoa", dot: "bg-[#50d66e]", unread: "2", Icon: PawPrint },
+    { paw: "text-[#93a4ff]", pill: "bg-[#efe8ff] text-paw-cocoa", dot: "bg-[#50d66e]", unread: "", Icon: Home },
+    { paw: "text-[#ff873f]", pill: "bg-[#ffefe4] text-paw-cocoa", dot: "bg-[#ffc114]", unread: "", Icon: ImageIcon }
+  ];
+  return tones[index % tones.length];
+}
+
 export function ChatClient() {
   const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +127,7 @@ export function ChatClient() {
   const [localMessagesByThread, setLocalMessagesByThread] = useState<Record<string, DisplayMessage[]>>(previewMessagesByThread);
   const [body, setBody] = useState("");
   const [status, setStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAttachments, setShowAttachments] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -150,6 +161,14 @@ export function ChatClient() {
 
     return apiThreads.length ? apiThreads : previewThreads;
   }, [conversations]);
+
+  const visibleThreads = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return threads;
+    return threads.filter((thread) =>
+      [thread.name, thread.subtitle, thread.lastMessage].some((value) => value.toLowerCase().includes(query))
+    );
+  }, [searchQuery, threads]);
 
   const displayMessages = useMemo(() => {
     if (!selectedThread) return [];
@@ -295,70 +314,147 @@ export function ChatClient() {
   }
 
   return (
-    <section className="flex min-h-screen flex-col bg-paw-radial pb-28">
-      <header className="flex items-center justify-between px-5 pb-4 pt-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            type="button"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/55 text-paw-ink"
-            onClick={() => {
-              if (selectedThread) {
-                closeThread();
-                return;
-              }
-              router.push("/home");
-            }}
-            aria-label="Go back"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-black leading-tight text-paw-ink">{selectedThread?.name ?? "Chats"}</h1>
-            <p className="text-xs font-bold text-paw-cocoa/70">
-              {guestLocked
-                ? "Login to start chatting"
-                : selectedThread
-                  ? conversation
-                    ? "API conversation"
-                    : "Mock preview"
-                  : "Previous conversations"}
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/55 text-paw-ink"
-          onClick={openNotifications}
-          aria-label="Open chat notifications"
-        >
-          <Bell size={19} />
-        </button>
-      </header>
-      {status ? <p className="px-5 pb-3 text-xs font-extrabold text-paw-cocoa/70">{status}</p> : null}
-      {guestLocked ? (
-        <div className="flex flex-1 items-start justify-center px-5 pt-8">
-          <div className="w-full rounded-[30px] border border-paw-peach/70 bg-white/80 px-5 py-8 text-center shadow-soft">
-            <div className="mx-auto mb-4 grid h-24 w-24 place-items-center overflow-hidden rounded-full bg-paw-blush ring-4 ring-white">
-              <img src={loginIcon.src} alt="" className="h-full w-full object-cover" />
-            </div>
-            <h2 className="text-2xl font-black text-paw-ink">Login Required</h2>
-            <p className="mx-auto mt-2 max-w-[260px] text-sm font-extrabold leading-relaxed text-paw-cocoa/70">
-              Please log in to view previous chats and message other PawPals.
-            </p>
+    <section
+      className="relative flex min-h-screen flex-col overflow-hidden px-5 pb-28 pt-6"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,247,238,0.9), rgba(255,241,236,0.92)), url(${bgChat.src})`,
+        backgroundPosition: "center top",
+        backgroundSize: "cover",
+        backgroundAttachment: "fixed"
+      }}
+    >
+      {!selectedThread ? (
+        <>
+          <PawPrint size={74} className="pointer-events-none absolute right-20 top-20 rotate-12 fill-paw-pink/10 text-paw-pink/10" />
+          <Heart size={34} className="pointer-events-none absolute right-16 top-40 fill-paw-pink/15 text-paw-pink/15" />
+        </>
+      ) : null}
+
+      {selectedThread ? (
+        <header className="relative z-10 -mx-5 -mt-6 mb-3 min-h-[190px] overflow-hidden px-5 pt-7">
+          <div className="relative z-20 flex items-start justify-between gap-4">
             <button
               type="button"
-              className="mt-6 inline-flex h-12 min-w-36 items-center justify-center gap-2 rounded-2xl bg-paw-pink px-6 text-sm font-black text-white shadow-soft"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/88 text-paw-pink shadow-soft"
+              onClick={closeThread}
+              aria-label="Back to chats"
+            >
+              <ArrowLeft size={25} strokeWidth={2.8} />
+            </button>
+
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="relative shrink-0">
+                <img src={selectedThread.avatar} alt={selectedThread.name} className="h-16 w-16 rounded-full object-cover ring-[3px] ring-white shadow-soft" />
+                <span className="absolute -bottom-1 -right-2 grid h-9 w-9 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
+                  <Heart size={20} className="fill-paw-pink/25" />
+                </span>
+              </span>
+              <span className="min-w-0">
+                <h1 className="truncate text-[25px] font-black leading-tight text-paw-ink">{selectedThread.name}</h1>
+                <p className="truncate text-base font-bold text-paw-cocoa">
+                  {selectedThread.subtitle} <PawPrint size={14} className="inline -translate-y-0.5 fill-paw-pink/20 text-paw-pink" />
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-[#46ae63]">
+                  Online <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#46ae63]" />
+                </p>
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/88 text-paw-ink shadow-soft"
+              onClick={openNotifications}
+              aria-label="Open chat notifications"
+            >
+              <span className="absolute right-1.5 top-1.5 h-3.5 w-3.5 rounded-full bg-paw-pink ring-2 ring-white" />
+              <Bell size={24} strokeWidth={2.4} />
+            </button>
+          </div>
+          <img src={profile1.src} alt="" className="pointer-events-none absolute bottom-0 right-16 z-10 h-24 w-24 object-contain opacity-95" />
+          <Heart size={32} className="pointer-events-none absolute bottom-10 right-8 z-10 fill-paw-pink/65 text-paw-pink/65" />
+          <div className="absolute bottom-[-52px] left-[-14%] z-0 h-[112px] w-[128%] rotate-[-3deg] rounded-t-[50%] border-t-4 border-paw-blush/70 bg-[#fff8ef]/92" />
+        </header>
+      ) : (
+        <header className="relative z-10 flex items-center justify-between pb-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              className="grid h-[62px] w-[62px] shrink-0 place-items-center rounded-full bg-white/85 text-paw-pink shadow-soft"
+              onClick={() => router.push("/home")}
+              aria-label="Go back"
+            >
+              <ArrowLeft size={30} strokeWidth={2.8} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-[42px] font-black leading-tight text-paw-ink">
+                Chats <PawPrint size={34} className="inline -translate-y-1 fill-paw-pink/30 text-paw-pink" />
+              </h1>
+              <p className="text-lg font-bold text-paw-cocoa/75">
+                {guestLocked ? "Login to start chatting" : "Previous conversations"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="relative grid h-[62px] w-[62px] shrink-0 place-items-center rounded-full bg-white/85 text-paw-ink shadow-soft"
+            onClick={openNotifications}
+            aria-label="Open chat notifications"
+          >
+            <span className="absolute right-2 top-2 h-3 w-3 rounded-full bg-paw-pink ring-2 ring-white" />
+            <Bell size={28} strokeWidth={2.4} />
+          </button>
+        </header>
+      )}
+      {status ? <p className="px-5 pb-3 text-xs font-extrabold text-paw-cocoa/70">{status}</p> : null}
+      {guestLocked ? (
+        <div className="flex flex-1 items-start justify-center pt-2">
+          <div className="relative w-full overflow-hidden rounded-[36px] border-2 border-paw-peach/70 bg-[#fff8ee]/95 px-7 pb-8 pt-7 text-center shadow-[0_18px_50px_rgba(122,81,63,0.16)]">
+            <div className="pointer-events-none absolute -left-14 -top-12 h-36 w-52 rounded-[46%] bg-paw-blush/55" />
+            <div className="pointer-events-none absolute -bottom-16 -left-12 h-32 w-48 rounded-[48%] bg-paw-blush/45" />
+            <div className="pointer-events-none absolute -bottom-16 -right-12 h-32 w-48 rounded-[48%] bg-paw-blush/45" />
+            <PawPrint className="pointer-events-none absolute left-8 top-24 h-12 w-12 rotate-[-12deg] fill-paw-peach/20 text-paw-peach/20" />
+            <PawPrint className="pointer-events-none absolute right-8 top-44 h-12 w-12 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+
+            <div className="relative mx-auto mb-5 grid h-32 w-32 place-items-center rounded-full bg-paw-blush shadow-[0_18px_35px_rgba(247,101,137,0.22)]">
+              <Sparkles className="absolute -left-9 top-10 h-6 w-6 fill-paw-butter text-paw-butter" />
+              <Sparkles className="absolute -right-8 top-16 h-5 w-5 fill-white text-white" />
+              <span className="relative grid h-[92px] w-[92px] place-items-center overflow-hidden rounded-full bg-white/75 shadow-[0_10px_18px_rgba(247,101,137,0.2)] ring-4 ring-white/80">
+                <img src={loginIcon.src} alt="" className="h-full w-full object-cover" />
+              </span>
+            </div>
+
+            <h2 className="text-[34px] font-black leading-tight text-paw-cocoa">
+              Login <span className="text-paw-pink">Required</span>
+            </h2>
+            <p className="mx-auto mt-3 max-w-[280px] text-[18px] font-black leading-relaxed text-paw-cocoa/75">
+              Please log in to view previous chats and message other PawPals.
+            </p>
+            <div className="mx-auto mt-4 flex w-16 items-center justify-center gap-2 text-paw-blush">
+              <span className="h-1.5 w-1.5 rounded-full bg-paw-blush" />
+              <Heart className="h-5 w-5 fill-paw-blush text-paw-blush" />
+              <span className="h-1.5 w-1.5 rounded-full bg-paw-blush" />
+            </div>
+            <button
+              type="button"
+              className="mt-4 inline-flex h-[68px] w-full items-center justify-center gap-4 rounded-[30px] border border-paw-pink bg-gradient-to-r from-paw-pink to-paw-rose text-[26px] font-black text-white shadow-[0_16px_32px_rgba(247,101,137,0.35)]"
               onClick={() => router.push("/auth?mode=login")}
             >
-              Log In
-              <PawPrint size={18} />
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-paw-pink">
+                <PawPrint className="h-7 w-7 fill-paw-pink/35" />
+              </span>
+              Go to Login
+              <PawPrint className="h-8 w-8 fill-white/20" />
             </button>
             <button
               type="button"
-              className="mt-3 block w-full text-sm font-black text-paw-cocoa"
+              className="mt-4 inline-flex h-[60px] w-full items-center justify-center gap-4 rounded-[28px] border-2 border-paw-cocoa/10 bg-white/75 text-[21px] font-black text-paw-cocoa shadow-[0_10px_24px_rgba(122,81,63,0.08)]"
               onClick={() => router.push("/auth?mode=signup")}
             >
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                <UserRound size={24} />
+              </span>
               Create Account
+              <ChevronRight className="h-8 w-8 text-paw-pink" />
             </button>
           </div>
         </div>
@@ -367,51 +463,126 @@ export function ChatClient() {
           Checking chat access...
         </div>
       ) : !selectedThread ? (
-        <div className="flex-1 space-y-3 px-5">
-          {threads.map((thread) => (
+        <div className="relative z-10 flex-1 space-y-5">
+          <label className="flex h-[64px] items-center gap-4 rounded-[26px] bg-white/85 px-5 shadow-soft backdrop-blur">
+            <Search size={29} className="shrink-0 text-paw-pink" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search conversations..."
+              className="min-w-0 flex-1 bg-transparent text-base font-bold text-paw-ink outline-none placeholder:text-paw-cocoa/55"
+            />
             <button
-              key={thread.id}
               type="button"
-              className="flex w-full items-center gap-3 rounded-[26px] bg-white/75 p-3 text-left shadow-soft transition active:scale-[0.99]"
-              onClick={() => void openThread(thread)}
+              onClick={() => setStatus("Conversation filters coming next.")}
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-paw-pink text-white shadow-[0_10px_22px_rgba(247,101,137,0.32)]"
+              aria-label="Filter conversations"
             >
-              <img src={thread.avatar} alt={thread.name} className="h-14 w-14 rounded-full object-cover ring-4 ring-white" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="truncate text-base font-black text-paw-ink">{thread.name}</h2>
-                  <span className="shrink-0 text-[10px] font-black text-paw-cocoa/55">{thread.time}</span>
-                </div>
-                <p className="truncate text-xs font-bold text-paw-cocoa/65">{thread.subtitle}</p>
-                <p className="mt-1 truncate text-sm font-extrabold text-paw-cocoa">{thread.lastMessage}</p>
-              </div>
+              <SlidersHorizontal size={23} />
             </button>
-          ))}
+          </label>
+
+          <div className="space-y-4">
+            {visibleThreads.map((thread, threadIndex) => {
+              const tone = threadTone(threadIndex);
+              const ToneIcon = tone.Icon;
+              return (
+                <button
+                  key={thread.id}
+                  type="button"
+                  className="relative flex min-h-[118px] w-full items-center gap-4 overflow-hidden rounded-[28px] bg-white/86 p-4 text-left shadow-soft transition active:scale-[0.99]"
+                  onClick={() => void openThread(thread)}
+                >
+                  <PawPrint size={52} className="pointer-events-none absolute bottom-4 right-12 fill-paw-peach/20 text-paw-peach/20" />
+                  <span className="relative shrink-0">
+                    <img src={thread.avatar} alt={thread.name} className="h-[76px] w-[76px] rounded-full object-cover ring-4 ring-white" />
+                    <span className={`absolute bottom-0 right-0 h-5 w-5 rounded-full ${tone.dot} ring-4 ring-white`} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="truncate text-[21px] font-black leading-tight text-paw-ink">
+                        {thread.name} <PawPrint size={18} className={`inline -translate-y-0.5 fill-current/20 ${tone.paw}`} />
+                      </span>
+                      <span className={`shrink-0 text-sm font-black ${threadIndex === 0 ? "text-paw-pink" : "text-paw-cocoa/70"}`}>
+                        {thread.time}
+                      </span>
+                    </span>
+                    <span className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-xl px-3 py-1 text-xs font-black ${tone.pill}`}>
+                      <ToneIcon size={14} />
+                      <span className="truncate">{thread.subtitle}</span>
+                    </span>
+                    <span className="mt-2 flex items-center gap-2">
+                      <span className="truncate text-base font-bold text-paw-ink">{thread.lastMessage}</span>
+                      {thread.lastMessage.toLowerCase().includes("image") ? <ImageIcon size={20} className="shrink-0 text-paw-pink" /> : null}
+                    </span>
+                  </span>
+                  {tone.unread ? (
+                    <span className="absolute right-5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-paw-pink text-sm font-black text-white shadow-soft">
+                      {tone.unread}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+            {!visibleThreads.length ? (
+              <div className="rounded-[26px] bg-white/85 p-6 text-center text-sm font-black text-paw-cocoa shadow-soft">
+                No conversations found.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="pointer-events-none min-h-48 opacity-30">
+            <div className="absolute bottom-16 left-[-50px] h-52 w-52 rounded-full bg-paw-blush blur-3xl" />
+            <PawPrint size={64} className="absolute bottom-24 right-6 fill-paw-pink/10 text-paw-pink/10" />
+          </div>
         </div>
       ) : (
-        <div className="flex-1 space-y-4 px-5">
+        <div className="relative z-10 flex-1 space-y-5 pb-24">
+          <div className="mx-auto flex w-fit items-center gap-2 rounded-full bg-paw-blush px-6 py-2 text-sm font-bold text-paw-pink shadow-soft">
+            <Heart size={13} className="fill-paw-pink/40 text-paw-pink/40" />
+            Today
+            <Heart size={13} className="fill-paw-pink/40 text-paw-pink/40" />
+          </div>
+
           {displayMessages.map((message) => (
-            <div key={message.id} className={`flex ${message.from === "me" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[74%] rounded-3xl px-4 py-3 ${message.from === "me" ? "bg-[#E8F4FF]" : "bg-white/75"}`}>
+            <div key={message.id} className={`relative flex ${message.from === "me" ? "justify-end" : "justify-start"}`}>
+              {message.from === "them" ? (
+                <span className="absolute -left-1 top-2 grid h-8 w-8 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
+                  <PawPrint size={17} className="fill-paw-pink/20" />
+                </span>
+              ) : (
+                <Heart size={27} className="absolute -right-1 top-1 fill-[#8fbfff]/25 text-[#8fbfff]" />
+              )}
+              <div
+                className={`max-w-[76%] px-5 py-4 shadow-soft ${
+                  message.from === "me"
+                    ? "rounded-[26px] bg-[#eaf4ff]"
+                    : "ml-8 rounded-[26px] bg-white/92"
+                }`}
+              >
                 {message.imageUrl ? (
                   <img
                     src={message.imageUrl}
                     alt={message.text}
-                    className="mb-2 max-h-52 w-full rounded-2xl object-cover"
+                    className="mb-3 max-h-44 w-full rounded-3xl object-cover"
                   />
                 ) : null}
-                <p className="text-sm font-bold leading-relaxed">{message.imageUrl ? "Image attachment" : message.text}</p>
-                <p className="mt-1 text-right text-[10px] font-bold text-paw-cocoa/55">{message.time}</p>
+                <p className="text-base font-bold leading-relaxed text-paw-ink">{message.imageUrl ? "Image attachment" : message.text}</p>
+                <p className={`mt-2 text-right text-xs font-bold ${message.from === "me" ? "text-paw-cocoa/60" : "text-paw-pink/70"}`}>
+                  {message.time}
+                  {message.from === "me" ? <span className="ml-2 text-[#55a7ff]">✓✓</span> : null}
+                </p>
               </div>
             </div>
           ))}
-          <CatMascot compact />
+
         </div>
       )}
       {selectedThread ? (
-        <div className="fixed bottom-[76px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 bg-paw-cream/80 px-4 py-3 backdrop-blur md:bottom-[100px]">
+        <div className="fixed bottom-[76px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-[24px] bg-white/92 px-4 py-3 shadow-[0_-12px_28px_rgba(122,81,63,0.12)] backdrop-blur md:bottom-[100px] md:rounded-[24px]">
           <div className="flex items-center gap-2">
             <button
-              className="grid h-11 w-11 place-items-center rounded-full bg-white/70"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-paw-blush bg-white text-paw-pink"
               type="button"
               onClick={() => {
                 try {
@@ -423,21 +594,22 @@ export function ChatClient() {
               }}
               aria-label="Show attachment options"
             >
-              <CirclePlus size={20} />
+              <CirclePlus size={25} />
             </button>
-            <label className="paw-input flex h-11 flex-1 items-center rounded-2xl px-4">
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-paw-blush bg-white px-4">
               <input
                 placeholder="Type a message..."
-                className="w-full bg-transparent text-sm font-bold outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-paw-cocoa/55"
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void sendMessage();
                 }}
               />
+              <Smile size={21} className="shrink-0 text-paw-pink" />
             </label>
-            <button className="grid h-11 w-11 place-items-center rounded-full bg-paw-pink text-white shadow-soft" type="button" onClick={sendMessage}>
-              <PawPrint size={20} />
+            <button className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paw-pink text-white shadow-[0_10px_22px_rgba(247,101,137,0.34)]" type="button" onClick={sendMessage}>
+              <PawPrint size={23} className="fill-white/20" />
             </button>
           </div>
           {showAttachments ? (

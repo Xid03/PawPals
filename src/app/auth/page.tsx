@@ -6,6 +6,6 @@ export default function AuthPage({
   searchParams?: { mode?: string };
 }) {
   return (
-    <AuthForm initialMode={searchParams?.mode === "login" ? "login" : "signup"} />
+    <AuthForm initialMode={searchParams?.mode === "signup" ? "signup" : "login"} />
   );
 }

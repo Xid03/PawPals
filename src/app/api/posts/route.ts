@@ -10,14 +10,18 @@ import { postSchema } from "@/server/validators";
 import { z } from "zod";
 
 const postQuerySchema = z.object({
-  topic: z.enum(["HEALTH", "BEHAVIOR", "FOOD", "GENERAL", "MEMES"]).optional()
+  topic: z.enum(["HEALTH", "BEHAVIOR", "FOOD", "GENERAL", "MEMES"]).optional(),
+  authorId: z.string().optional()
 });
 
 export async function GET(request: NextRequest) {
   try {
     const page = getPagination(request.nextUrl.searchParams);
     const query = postQuerySchema.parse(queryObject(request));
-    const where = query.topic ? { topic: query.topic } : {};
+    const where = {
+      ...(query.topic ? { topic: query.topic } : {}),
+      ...(query.authorId ? { authorId: query.authorId } : {})
+    };
     const posts = await prisma.post.findMany({
       where,
       skip: page.skip,

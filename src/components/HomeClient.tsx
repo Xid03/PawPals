@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, MapPin, PawPrint, Search } from "lucide-react";
+import { Bell, ChevronRight, MapPin, PawPrint, Search } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
 import { apiFetch, ageLabel, catImage, distanceLabel, isGuestMode, type ApiCat, type ApiPost } from "@/lib/api-client";
 import { currentUser, cats as mockCats, posts as mockPosts, quickActions } from "@/data/mockData";
+import backgroundButton from "../../images/backgroundButton.png";
+import bgArtwork from "../../images/bg.png";
 import profileIcon from "../../images/profileIcon.png";
 
 function mapPost(post: ApiPost): DisplayPost {
@@ -85,7 +87,13 @@ export function HomeClient() {
       .catch(() => undefined);
   }, []);
 
-  const avatarStack = useMemo(() => cats.slice(0, 4), [cats]);
+  const avatarStack = useMemo(() => cats.slice(0, 2), [cats]);
+  const actionDetails = {
+    "Health Tips": { description: "Helpful tips for happy cats", tint: "bg-[#FFE9A8]", arrow: "text-[#F7B548]" },
+    "Stories & Memes": { description: "Fun stories and cute memes", tint: "bg-[#FFDDE8]", arrow: "text-paw-pink" },
+    "Vet Directory": { description: "Find trusted vets near you", tint: "bg-[#E7DCFF]", arrow: "text-paw-lavender" },
+    Events: { description: "Upcoming cat events near you", tint: "bg-[#FFE2C6]", arrow: "text-[#FF9A56]" }
+  };
 
   async function loadNearby(lat: number, lng: number, updateStatus = true) {
     const items = await apiFetch<ApiCat[]>(
@@ -135,33 +143,52 @@ export function HomeClient() {
   }
 
   return (
-    <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
+    <section
+      className="min-h-screen px-5 pb-28 pt-6"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,247,238,0.88), rgba(255,247,238,0.9)), url(${bgArtwork.src})`,
+        backgroundPosition: "center top",
+        backgroundSize: "cover",
+        backgroundAttachment: "fixed"
+      }}
+    >
       <header className="mb-6 flex items-start justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {guest ? (
-            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-white ring-2 ring-paw-peach">
+            <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-2 ring-paw-peach">
               <img src={profileIcon.src} alt="Guest" className="h-full w-full object-cover" />
             </span>
           ) : (
             <img
               src={currentUser.avatar}
               alt={userName}
-              className="h-12 w-12 rounded-full object-cover ring-2 ring-paw-peach"
+              className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-paw-peach"
             />
           )}
-          <div>
-            <h1 className="max-w-64 text-2xl font-black leading-tight text-paw-ink">
-              {guest ? "Welcome, Guest!" : `Good Meowning, ${userName}!`}
-            </h1>
-            {guest ? <p className="mt-1 text-xs font-extrabold text-paw-cocoa/70">Browse PawPals with limited access</p> : null}
+          <div className="min-w-0">
+          <h1 className="max-w-[270px] text-[25px] font-black leading-[1.25] text-paw-ink">
+            {guest ? (
+              <>
+                Welcome, <span className="text-paw-pink">Guest!</span>
+              </>
+            ) : (
+              <>
+                Good <span className="text-paw-pink">Meowning,</span>
+                <br />
+                {userName}! <PawPrint size={22} className="inline -translate-y-0.5 fill-paw-pink/20 text-paw-pink" />
+              </>
+            )}
+          </h1>
+          {guest ? <p className="mt-1 text-xs font-extrabold text-paw-cocoa/70">Browse PawPals with limited access</p> : null}
           </div>
         </div>
         <Link
           href="/profile"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/60"
+          className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/85 text-paw-cocoa shadow-soft"
           aria-label="Open notifications"
         >
-          <Bell size={19} />
+          <span className="absolute right-2 top-1.5 h-2 w-2 rounded-full bg-paw-pink" />
+          <Bell size={21} />
         </Link>
       </header>
 
@@ -176,28 +203,45 @@ export function HomeClient() {
         </span>
       </label>
 
-      <section className="mb-4 rounded-3xl bg-gradient-to-br from-paw-peach to-paw-rose p-5 text-center text-white shadow-soft">
-        <h2 className="text-base font-black">Meet Nearby PawPals</h2>
-        <div className="my-4 flex justify-center -space-x-3">
-          {avatarStack.map((cat) => (
-            <img
-              key={cat.id}
-              src={cat.image}
-              alt={cat.name}
-              className="h-14 w-14 rounded-full object-cover ring-4 ring-white/70"
-            />
-          ))}
+      <section
+        className="relative mb-4 min-h-[220px] overflow-hidden rounded-[26px] px-5 py-5 text-center text-white shadow-soft"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(255,177,166,0.42), rgba(255,103,145,0.58), rgba(255,174,151,0.42)), url(${backgroundButton.src})`,
+          backgroundPosition: "center",
+          backgroundSize: "cover",
+          backgroundBlendMode: "soft-light, normal"
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[#ff8caf]/20" />
+        <div className="relative z-10">
+          <h2 className="text-lg font-black drop-shadow-sm">Meet Nearby PawPals ✦</h2>
+          <div className="relative mx-auto my-4 flex w-fit items-center justify-center">
+            {avatarStack.map((cat) => (
+              <img
+                key={cat.id}
+                src={cat.image}
+                alt={cat.name}
+                className="-mx-1 h-[66px] w-[66px] rounded-full object-cover ring-[4px] ring-white"
+              />
+            ))}
+            <span className="absolute bottom-0 left-1/2 grid h-9 w-9 -translate-x-1/2 translate-y-3 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
+              <PawPrint size={17} className="fill-paw-pink/20" />
+            </span>
+          </div>
+          <p className="mb-2 mt-5 text-sm font-black drop-shadow-sm">{cats.length} cats ready to meet</p>
+          <p className="mb-4 flex items-center justify-center gap-1 text-[12px] font-bold text-white/90 drop-shadow-sm">
+            <MapPin size={13} className="fill-white/20" />
+            {nearbyStatus}
+          </p>
+          <button
+            type="button"
+            onClick={exploreNearby}
+            disabled={isLocating}
+            className="mx-auto inline-flex min-w-[128px] items-center justify-center gap-2 rounded-full bg-[#f75f93] px-7 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(247,95,147,0.34)] disabled:opacity-75"
+          >
+            {isLocating ? "Locating..." : "Explore"} <PawPrint size={17} />
+          </button>
         </div>
-        <p className="mb-1 text-xs font-bold">{cats.length} cats ready to meet</p>
-        <p className="mb-3 text-[11px] font-bold text-white/80">{nearbyStatus}</p>
-        <button
-          type="button"
-          onClick={exploreNearby}
-          disabled={isLocating}
-          className="mx-auto inline-flex items-center gap-2 rounded-full bg-paw-pink px-7 py-3 text-sm font-black shadow-soft"
-        >
-          {isLocating ? "Locating..." : "Explore"} <PawPrint size={17} />
-        </button>
       </section>
 
       <section className="mb-6 grid grid-cols-2 gap-3">
@@ -205,12 +249,20 @@ export function HomeClient() {
           <Link
             key={action.title}
             href={action.href}
-            className={`flex min-h-20 items-center gap-3 rounded-2xl p-4 shadow-soft ${action.color}`}
+            className={`relative flex min-h-[104px] items-center gap-2 rounded-[20px] p-3 pr-9 shadow-soft ${actionDetails[action.title as keyof typeof actionDetails].tint}`}
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/55">
-              <img src={action.icon} alt="" className="h-full w-full object-cover object-center" />
+            <span className="grid h-[52px] w-[52px] shrink-0 place-items-center overflow-hidden rounded-[17px] bg-white/60">
+              <img src={action.icon} alt="" className="h-[38px] w-[38px] object-contain" />
             </span>
-            <span className="text-sm font-black leading-tight text-paw-ink">{action.title}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block text-[12px] font-black leading-tight text-paw-ink">{action.title}</span>
+              <span className="mt-1 block text-[10.5px] font-bold leading-snug text-paw-cocoa/75">
+                {actionDetails[action.title as keyof typeof actionDetails].description}
+              </span>
+            </span>
+            <span className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-white/80">
+              <ChevronRight size={15} strokeWidth={3} className={actionDetails[action.title as keyof typeof actionDetails].arrow} />
+            </span>
           </Link>
         ))}
       </section>
