@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calendar, Heart, MapPin, PawPrint, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { apiFetch, ageLabel, catImage, distanceLabel, requireSignedIn, type ApiCat } from "@/lib/api-client";
-import { cats as mockCats } from "@/data/mockData";
+import { apiFetch, ageLabel, distanceLabel, requireSignedIn, type ApiCat } from "@/lib/api-client";
 import discoverCat1 from "../../images/discoverCat1.png";
+import profileIcon from "../../images/profileIcon.png";
 
 type DisplayCat = {
   id: string;
@@ -25,7 +25,7 @@ function mapCat(cat: ApiCat): DisplayCat {
     breed: cat.breed,
     age: ageLabel(cat.ageMonths),
     distance: distanceLabel(cat),
-    image: catImage(cat, mockCats[0].image)
+    image: cat.photos?.[0]?.url ?? profileIcon.src
   };
 }
 
@@ -42,7 +42,7 @@ const filters: FilterItem[] = [
 ];
 
 export function DiscoverClient() {
-  const [cats, setCats] = useState<DisplayCat[]>(mockCats);
+  const [cats, setCats] = useState<DisplayCat[]>([]);
   const [index, setIndex] = useState(0);
   const [filter, setFilter] = useState("Nearby");
   const [message, setMessage] = useState("Playdate-ready cats near you");
@@ -69,12 +69,10 @@ export function DiscoverClient() {
 
     apiFetch<ApiCat[]>(`/api/cats/nearby?${query}`)
       .then((items) => {
-        if (items.length) {
-          setCats(items.map(mapCat));
-          setIndex(0);
-          const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
-          setMessage(exactNearby ? "Nearest PawPals are sorted by distance" : "No close cats yet, showing nearest PawPals");
-        }
+        setCats(items.map(mapCat));
+        setIndex(0);
+        const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
+        setMessage(items.length ? (exactNearby ? "Nearest PawPals are sorted by distance" : "No close cats yet, showing nearest PawPals") : "No cat profiles uploaded yet");
       })
       .catch(() => undefined);
   }, []);
@@ -182,7 +180,13 @@ export function DiscoverClient() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-[27px] bg-white/85 p-8 text-center shadow-soft">
+            <PawPrint className="mx-auto h-14 w-14 fill-paw-pink/20 text-paw-pink" />
+            <h2 className="mt-4 text-2xl font-black text-paw-ink">No cats yet</h2>
+            <p className="mt-2 text-sm font-bold text-paw-cocoa/70">Uploaded cat profiles will appear here.</p>
+          </div>
+        )}
 
         <div className="mt-7 grid grid-cols-3 items-center gap-5 px-12">
           <button

@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { apiFetch, getToken, isGuestMode, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
 import { cats, chatMessages } from "@/data/mockData";
 import bgChat from "../../images/bgChat.png";
+import homepageImage from "../../images/homepage.png";
 import loginIcon from "../../images/loginIcon.png";
 import profile1 from "../../images/profile1.png";
 
@@ -658,37 +659,63 @@ export function ChatClient() {
         </div>
       ) : null}
       {showNotifications ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-paw-ink/25 px-5 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-[28px] bg-white p-5 shadow-soft">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-paw-ink">Chat Alerts</h2>
-                <p className="text-xs font-bold text-paw-cocoa/65">Conversation updates</p>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-paw-ink/35 px-5 backdrop-blur-sm">
+          <div className="relative w-full max-w-[315px] overflow-hidden rounded-[28px] border-2 border-paw-peach/70 bg-[#fff8ee]/95 px-4 py-4 shadow-[0_24px_70px_rgba(58,34,26,0.28)]">
+            <div className="mb-4 flex items-center justify-between gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-paw-blush text-paw-pink">
+                  <Bell size={28} className="fill-paw-blush/20" strokeWidth={2.7} />
+                  <Sparkles className="absolute -right-1.5 top-0 h-3.5 w-3.5 fill-paw-butter text-paw-butter" />
+                </span>
+                <span className="min-w-0 text-left">
+                  <h2 className="truncate text-[23px] font-black leading-tight text-paw-ink">Chat Alerts</h2>
+                  <p className="mt-0.5 text-sm font-bold leading-none text-paw-cocoa/75">
+                    Conversation updates
+                  </p>
+                </span>
               </div>
               <button
                 type="button"
-                className="grid h-9 w-9 place-items-center rounded-full bg-paw-cream text-paw-ink"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/80 text-paw-cocoa shadow-[0_10px_24px_rgba(122,81,63,0.12)]"
                 onClick={() => setShowNotifications(false)}
                 aria-label="Close notifications"
               >
-                <X size={18} />
+                <X size={22} strokeWidth={3} />
               </button>
             </div>
-            <div className="space-y-3">
-              <div className="rounded-3xl bg-paw-cream p-4">
-                <p className="text-sm font-black text-paw-ink">No new messages right now.</p>
-                <p className="mt-1 text-xs font-bold text-paw-cocoa/70">
+
+            <div className="relative mb-4 flex min-h-[145px] items-center gap-2.5 rounded-[22px] border-2 border-paw-peach/55 bg-white/45 px-3.5 py-4 shadow-[0_10px_24px_rgba(122,81,63,0.06)]">
+              <PawPrint className="pointer-events-none absolute right-3 top-4 h-8 w-8 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+              <Sparkles className="absolute left-6 top-6 h-3.5 w-3.5 fill-paw-butter text-paw-butter" />
+              <div className="relative grid h-24 w-24 shrink-0 place-items-end">
+                <img
+                  src={homepageImage.src}
+                  alt=""
+                  className="relative z-10 h-20 w-20 object-contain drop-shadow-[0_10px_14px_rgba(122,81,63,0.12)]"
+                />
+                <span className="absolute right-0 top-2 grid h-8 w-11 place-items-center rounded-[16px] bg-paw-rose text-white shadow-soft">
+                  <span className="text-base leading-none">...</span>
+                </span>
+              </div>
+              <div className="min-w-0 text-left">
+                <h3 className="text-[17px] font-black leading-tight text-paw-ink">
+                  No new messages right now.
+                </h3>
+                <p className="mt-1.5 text-xs font-bold leading-snug text-paw-cocoa/75">
                   New replies, image messages, and playdate updates will appear here.
                 </p>
               </div>
-              <button
-                type="button"
-                className="w-full rounded-2xl bg-paw-pink py-3 text-sm font-black text-white shadow-soft"
-                onClick={() => setShowNotifications(false)}
-              >
-                Done
-              </button>
             </div>
+
+            <button
+              type="button"
+              className="relative h-12 w-full overflow-hidden rounded-[22px] bg-gradient-to-r from-paw-pink to-paw-rose text-lg font-black text-white shadow-[0_16px_32px_rgba(247,101,137,0.32)]"
+              onClick={() => setShowNotifications(false)}
+            >
+              <Heart className="absolute left-6 top-3.5 h-4 w-4 fill-white/30 text-white/30" />
+              Done
+              <Heart className="absolute right-6 top-3.5 h-4 w-4 fill-white/30 text-white/30" />
+            </button>
           </div>
         </div>
       ) : null}

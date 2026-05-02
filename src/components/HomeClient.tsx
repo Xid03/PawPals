@@ -30,6 +30,7 @@ export function HomeClient() {
   const [cats, setCats] = useState(mockCats);
   const [posts, setPosts] = useState<DisplayPost[]>(mockPosts);
   const [userName, setUserName] = useState("Cat Lover");
+  const [userAvatar, setUserAvatar] = useState(profileIcon.src);
   const [guest, setGuest] = useState(false);
   const [nearbyStatus, setNearbyStatus] = useState("Tap Explore to use your location");
   const [isLocating, setIsLocating] = useState(false);
@@ -54,11 +55,15 @@ export function HomeClient() {
     setGuest(isGuest);
     if (isGuest) {
       setUserName("Guest");
+      setUserAvatar(profileIcon.src);
     }
 
     apiFetch<{ user: { name: string; avatarUrl?: string | null } }>("/api/auth/me")
       .then(({ user }) => {
-        if (!isGuest) setUserName(user.name || "Cat Lover");
+        if (!isGuest) {
+          setUserName(user.name || "Cat Lover");
+          setUserAvatar(user.avatarUrl || profileIcon.src);
+        }
       })
       .catch(() => undefined);
 
@@ -160,7 +165,7 @@ export function HomeClient() {
             </span>
           ) : (
             <img
-              src={currentUser.avatar}
+              src={userAvatar}
               alt={userName}
               className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-paw-peach"
             />

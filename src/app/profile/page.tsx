@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, LogOut, MapPin, PawPrint, Settings, Users, X } from "lucide-react";
+import { AtSign, Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, LogOut, MapPin, MessageCircle, PawPrint, Settings, Sparkles, UserRound, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { apiFetch, clearGuestMode, clearToken, isGuestMode, requireSignedIn, type ApiPost, type PublicUser } from "@/lib/api-client";
 import { currentUser } from "@/data/mockData";
+import homepageImage from "../../../images/homepage.png";
 import profile1 from "../../../images/profile1.png";
 import profileBg from "../../../images/profileBg.png";
 import profileIcon from "../../../images/profileIcon.png";
@@ -75,6 +76,20 @@ export default function UserProfilePage() {
   const displayName = guest ? "Guest" : user?.name ?? name;
   const displayRole = guest ? "Browsing PawPals" : user ? `@${user.username}` : currentUser.role;
   const avatar = user?.avatarUrl ?? currentUser.catAvatar;
+  const activePanelTitle =
+    activePanel === "posts"
+      ? "My Posts"
+      : activePanel === "followers"
+        ? "My PawPals"
+        : activePanel === "following"
+          ? "Following"
+          : activePanel === "saved"
+            ? "Saved Posts"
+            : activePanel === "visits"
+              ? "My Vet Visits"
+              : activePanel === "notifications"
+                ? "Notifications"
+                : "Settings";
 
   async function loadProfileData(userId: string) {
     try {
@@ -96,6 +111,7 @@ export default function UserProfilePage() {
   function openEditProfile() {
     try {
       requireSignedIn();
+      setActivePanel(null);
       setAvatarPreview(user?.avatarUrl ?? currentUser.catAvatar);
       setAvatarFile(null);
       setShowEdit(true);
@@ -302,169 +318,276 @@ export default function UserProfilePage() {
       </div>
 
       {showEdit ? (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-paw-ink/30 px-5 backdrop-blur-sm">
-          <form onSubmit={saveProfile} className="w-full max-w-[360px] rounded-[26px] bg-paw-cream p-5 shadow-paw">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-black">Edit Profile</h2>
-              <button type="button" onClick={() => setShowEdit(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/70" aria-label="Close edit profile">
-                <X size={18} />
+        <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-paw-ink/35 px-5 py-5 backdrop-blur-sm">
+          <form onSubmit={saveProfile} className="relative w-full max-w-[360px] overflow-hidden rounded-[30px] border-2 border-paw-peach/70 bg-[#fff8ee]/95 px-5 py-5 shadow-[0_24px_70px_rgba(58,34,26,0.28)]">
+            <div className="pointer-events-none absolute -bottom-16 -left-10 h-28 w-40 rounded-[48%] bg-paw-blush/45" />
+            <div className="pointer-events-none absolute -bottom-16 -right-10 h-28 w-40 rounded-[48%] bg-paw-blush/45" />
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-[30px] font-black leading-none text-paw-ink">
+                Edit Profile
+                <PawPrint className="h-7 w-7 fill-paw-pink/55 text-paw-pink" />
+                <Sparkles className="h-4 w-4 fill-paw-butter text-paw-butter" />
+              </h2>
+              <button type="button" onClick={() => setShowEdit(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/80 text-paw-cocoa shadow-[0_10px_24px_rgba(122,81,63,0.12)]" aria-label="Close edit profile">
+                <X size={24} strokeWidth={3} />
               </button>
             </div>
-            <div className="mb-4 flex items-center gap-4 rounded-3xl bg-white/60 p-3">
-              <img src={avatarPreview} alt={name} className="h-20 w-20 rounded-full object-cover ring-4 ring-paw-cream" />
-              <div className="flex-1">
-                <p className="text-sm font-black text-paw-ink">Profile Picture</p>
-                <p className="mt-1 text-xs font-bold text-paw-cocoa/65">Choose a new photo for your profile.</p>
+            <div className="relative mb-4 flex items-center gap-4 rounded-[24px] border border-paw-peach/55 bg-white/45 p-4 shadow-[0_10px_24px_rgba(122,81,63,0.06)]">
+              <PawPrint className="pointer-events-none absolute right-5 top-6 h-10 w-10 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+              <div className="relative shrink-0">
+                <img src={avatarPreview} alt={name} className="h-24 w-24 rounded-full object-cover ring-[5px] ring-white shadow-[0_10px_24px_rgba(122,81,63,0.12)]" />
                 <button
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
-                  className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-paw-pink px-4 text-xs font-black text-white shadow-soft"
+                  className="absolute -bottom-2 -right-2 grid h-11 w-11 place-items-center rounded-full border-4 border-white bg-paw-rose text-white shadow-soft"
+                  aria-label="Change profile photo"
                 >
-                  <Camera size={15} />
+                  <Camera size={21} />
+                </button>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[20px] font-black leading-tight text-paw-ink">Profile Picture</p>
+                <p className="mt-1 text-sm font-bold leading-snug text-paw-cocoa/70">Choose a new photo for your profile.</p>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-[18px] bg-gradient-to-r from-paw-pink to-paw-rose px-5 text-sm font-black text-white shadow-[0_14px_28px_rgba(247,101,137,0.28)]"
+                >
+                  <Camera size={17} />
                   Change Photo
                 </button>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => {
-                    chooseAvatar(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
               </div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  chooseAvatar(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
             </div>
             <label className="mb-3 block">
-              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">Name</span>
-              <input className="paw-input h-11 w-full rounded-xl px-4 text-sm font-bold" value={name} onChange={(event) => setName(event.target.value)} required />
+              <span className="mb-1.5 flex items-center gap-2 text-sm font-black text-paw-cocoa/75">
+                <span className="h-2 w-2 rounded-full bg-paw-rose" />
+                Name
+              </span>
+              <span className="flex h-[52px] items-center overflow-hidden rounded-[20px] border border-paw-peach/55 bg-white/70 shadow-[0_10px_22px_rgba(122,81,63,0.06)]">
+                <span className="grid h-full w-14 shrink-0 place-items-center bg-paw-blush/30 text-paw-pink">
+                  <UserRound size={23} />
+                </span>
+                <input className="min-w-0 flex-1 bg-transparent px-4 text-lg font-black text-paw-ink outline-none" value={name} onChange={(event) => setName(event.target.value)} required />
+                <Heart className="mr-4 h-4 w-4 fill-paw-blush text-paw-blush" />
+              </span>
             </label>
             <label className="mb-3 block">
-              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">Username</span>
-              <input className="paw-input h-11 w-full rounded-xl px-4 text-sm font-bold" value={username} onChange={(event) => setUsername(event.target.value)} required />
+              <span className="mb-1.5 flex items-center gap-2 text-sm font-black text-paw-cocoa/75">
+                <span className="h-2 w-2 rounded-full bg-paw-rose" />
+                Username
+              </span>
+              <span className="flex h-[52px] items-center overflow-hidden rounded-[20px] border border-paw-peach/55 bg-white/70 shadow-[0_10px_22px_rgba(122,81,63,0.06)]">
+                <span className="grid h-full w-14 shrink-0 place-items-center bg-paw-blush/30 text-paw-pink">
+                  <AtSign size={24} />
+                </span>
+                <input className="min-w-0 flex-1 bg-transparent px-4 text-lg font-black text-paw-ink outline-none" value={username} onChange={(event) => setUsername(event.target.value)} required />
+                <Heart className="mr-4 h-4 w-4 fill-paw-blush text-paw-blush" />
+              </span>
             </label>
             <label className="mb-3 block">
-              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">City</span>
-              <input className="paw-input h-11 w-full rounded-xl px-4 text-sm font-bold" value={city} onChange={(event) => setCity(event.target.value)} />
+              <span className="mb-1.5 flex items-center gap-2 text-sm font-black text-paw-cocoa/75">
+                <span className="h-2 w-2 rounded-full bg-paw-rose" />
+                City
+              </span>
+              <span className="flex h-[52px] items-center overflow-hidden rounded-[20px] border border-paw-peach/55 bg-white/70 shadow-[0_10px_22px_rgba(122,81,63,0.06)]">
+                <span className="grid h-full w-14 shrink-0 place-items-center bg-paw-blush/30 text-paw-pink">
+                  <MapPin size={25} className="fill-paw-pink/20" />
+                </span>
+                <input className="min-w-0 flex-1 bg-transparent px-4 text-lg font-black text-paw-ink outline-none" value={city} onChange={(event) => setCity(event.target.value)} />
+                <Heart className="mr-4 h-4 w-4 fill-paw-blush text-paw-blush" />
+              </span>
             </label>
             <label className="mb-4 block">
-              <span className="mb-1 block text-xs font-black text-paw-cocoa/70">Bio</span>
-              <textarea className="paw-input min-h-24 w-full resize-none rounded-xl px-4 py-3 text-sm font-bold" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={300} />
+              <span className="mb-1.5 flex items-center gap-2 text-sm font-black text-paw-cocoa/75">
+                <span className="h-2 w-2 rounded-full bg-paw-rose" />
+                Bio
+              </span>
+              <span className="flex min-h-[104px] items-stretch overflow-hidden rounded-[20px] border border-paw-peach/55 bg-white/70 shadow-[0_10px_22px_rgba(122,81,63,0.06)]">
+                <span className="flex w-14 shrink-0 justify-center bg-paw-blush/30 pt-5 text-paw-pink">
+                  <MessageCircle size={25} className="fill-paw-pink/20" />
+                </span>
+                <textarea className="min-h-[104px] min-w-0 flex-1 resize-none bg-transparent px-4 py-4 text-lg font-black leading-snug text-paw-ink outline-none" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={300} />
+                <Heart className="mb-4 mr-4 mt-auto h-4 w-4 shrink-0 fill-paw-blush text-paw-blush" />
+              </span>
             </label>
-            <button type="submit" disabled={isSaving} className="h-12 w-full rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft disabled:opacity-70">
-              {isSaving ? "Saving..." : "Save Profile"}
+            <button type="submit" disabled={isSaving} className="relative h-14 w-full overflow-hidden rounded-[22px] bg-gradient-to-r from-paw-pink to-paw-rose text-xl font-black text-white shadow-[0_16px_32px_rgba(247,101,137,0.32)] disabled:opacity-70">
+              <Sparkles className="absolute left-7 top-4 h-5 w-5 fill-white/30 text-white/30" />
+              <span className="inline-flex items-center gap-3">
+                <PawPrint className="h-7 w-7 fill-white/25" />
+                {isSaving ? "Saving..." : "Save Profile"}
+              </span>
+              <Sparkles className="absolute right-7 top-4 h-5 w-5 fill-white/30 text-white/30" />
             </button>
           </form>
         </div>
       ) : null}
 
       {activePanel ? (
-        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-w-[430px] rounded-t-[28px] bg-paw-cream p-5 shadow-paw">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-black">
-              {activePanel === "posts"
-                ? "My Posts"
-                : activePanel === "followers"
-                  ? "Followers"
-                  : activePanel === "following"
-                    ? "Following"
-                : activePanel === "saved"
-                  ? "Saved Posts"
-                  : activePanel === "visits"
-                    ? "My Vet Visits"
-                    : activePanel === "notifications"
-                      ? "Notifications"
-                      : "Settings"}
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-paw-ink/35 px-5 backdrop-blur-sm">
+          <div className="relative w-full max-w-[390px] overflow-hidden rounded-[34px] border-2 border-paw-peach/70 bg-[#fff8ee]/95 px-6 py-7 shadow-[0_24px_70px_rgba(58,34,26,0.28)]">
+          <PawPrint className="pointer-events-none absolute bottom-7 left-5 h-12 w-12 rotate-[-12deg] fill-paw-peach/20 text-paw-peach/20" />
+          <PawPrint className="pointer-events-none absolute right-7 top-[118px] h-12 w-12 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <h2 className="flex min-w-0 items-center gap-3 text-[31px] font-black leading-tight text-paw-cocoa">
+              <span className="truncate">{activePanelTitle}</span>
+              <PawPrint className="h-9 w-9 shrink-0 fill-paw-pink/55 text-paw-pink" />
+              <Sparkles className="h-6 w-6 shrink-0 fill-paw-butter text-paw-butter" />
             </h2>
-            <button type="button" onClick={() => setActivePanel(null)} className="grid h-9 w-9 place-items-center rounded-full bg-white/70" aria-label="Close panel">
-              <X size={18} />
+            <button
+              type="button"
+              onClick={() => setActivePanel(null)}
+              className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/80 text-paw-rose shadow-[0_10px_24px_rgba(122,81,63,0.12)]"
+              aria-label="Close panel"
+            >
+              <X size={30} strokeWidth={3} />
             </button>
           </div>
 
           {activePanel === "posts" ? (
-            <div className="grid max-h-[55vh] gap-3 overflow-y-auto pb-2">
+            <div className="relative">
               {profilePosts.length ? (
-                profilePosts.map((post) => (
-                  <button
-                    key={post.id}
-                    type="button"
-                    onClick={() => router.push("/community")}
-                    className="rounded-2xl bg-white/70 px-4 py-3 text-left"
-                  >
-                    <p className="line-clamp-2 text-sm font-extrabold text-paw-ink">{post.text}</p>
-                    <p className="mt-2 text-xs font-bold text-paw-cocoa/65">
-                      {post._count?.likes ?? 0} likes - {post._count?.comments ?? 0} comments
-                    </p>
-                  </button>
-                ))
+                <div className="grid max-h-[52vh] gap-3 overflow-y-auto pb-2">
+                  {profilePosts.map((post) => (
+                    <button
+                      key={post.id}
+                      type="button"
+                      onClick={() => router.push("/community")}
+                      className="rounded-2xl border border-paw-peach/40 bg-white/75 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
+                    >
+                      <p className="line-clamp-2 text-sm font-extrabold text-paw-ink">{post.text}</p>
+                      <p className="mt-2 text-xs font-bold text-paw-cocoa/65">
+                        {post._count?.likes ?? 0} likes - {post._count?.comments ?? 0} comments
+                      </p>
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <p className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa">No posts yet.</p>
+                <div className="relative flex min-h-[260px] items-center gap-5 rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 px-5 py-8">
+                  <div className="relative grid h-36 w-36 shrink-0 place-items-center">
+                    <div className="absolute inset-0 rounded-full bg-paw-blush/70" />
+                    <img
+                      src={homepageImage.src}
+                      alt=""
+                      className="relative h-32 w-32 object-contain drop-shadow-[0_10px_14px_rgba(122,81,63,0.12)]"
+                    />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <h3 className="text-[25px] font-black leading-tight text-paw-cocoa">No posts yet.</h3>
+                    <p className="mt-3 text-[18px] font-bold leading-snug text-paw-cocoa/70">
+                      Share something pawsome! <Heart className="inline h-5 w-5 fill-paw-rose text-paw-rose" />
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           ) : null}
 
           {activePanel === "followers" || activePanel === "following" ? (
-            <div className="grid gap-3">
+            <div className="relative rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-4">
               {(activePanel === "followers" ? followers : following).length ? (
-                (activePanel === "followers" ? followers : following).map((person) => (
-                  <button key={person.id} type="button" onClick={() => router.push("/discover")} className="flex h-16 items-center gap-3 rounded-2xl bg-white/70 px-4 text-left">
-                    <img src={person.avatarUrl ?? currentUser.catAvatar} alt={person.name} className="h-11 w-11 rounded-full object-cover" />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-extrabold">{person.name}</span>
-                      <span className="block truncate text-xs font-bold text-paw-cocoa/65">@{person.username}</span>
-                    </span>
-                  </button>
-                ))
+                <div className="grid max-h-[52vh] gap-3 overflow-y-auto">
+                  {(activePanel === "followers" ? followers : following).map((person) => (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={() => router.push("/discover")}
+                      className="flex min-h-20 items-center gap-4 rounded-2xl bg-white/76 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
+                    >
+                      <img src={person.avatarUrl ?? currentUser.catAvatar} alt={person.name} className="h-14 w-14 rounded-full object-cover ring-4 ring-white" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-lg font-black text-paw-cocoa">{person.name}</span>
+                        <span className="mt-1 block truncate text-sm font-bold text-paw-cocoa/65">@{person.username}</span>
+                      </span>
+                      <ChevronRight size={24} className="shrink-0 text-paw-pink" />
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <p className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa">
-                  {activePanel === "followers" ? "No followers yet." : "You are not following anyone yet."}
-                </p>
+                <div className="flex min-h-[230px] items-center gap-5 px-2">
+                  <div className="relative grid h-32 w-32 shrink-0 place-items-center">
+                    <div className="absolute inset-0 rounded-full bg-paw-blush/70" />
+                    <img src={homepageImage.src} alt="" className="relative h-28 w-28 object-contain drop-shadow-[0_10px_14px_rgba(122,81,63,0.12)]" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <h3 className="text-[24px] font-black leading-tight text-paw-cocoa">
+                      {activePanel === "followers" ? "No PawPals yet." : "No following yet."}
+                    </h3>
+                    <p className="mt-3 text-[17px] font-bold leading-snug text-paw-cocoa/70">
+                      {activePanel === "followers" ? "New friends will show up here." : "Find PawPals to follow."}{" "}
+                      <Heart className="inline h-5 w-5 fill-paw-rose text-paw-rose" />
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           ) : null}
 
           {activePanel === "saved" ? (
-            <div className="grid gap-3">
-              <button type="button" onClick={() => router.push("/community")} className="h-12 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
+            <div className="grid gap-4 rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5">
+              <button type="button" onClick={() => router.push("/community")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <Bookmark size={24} className="fill-paw-pink/20 text-paw-pink" />
                 View Saved Posts
               </button>
-              <button type="button" onClick={() => router.push("/events")} className="h-12 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
+              <button type="button" onClick={() => router.push("/events")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <CalendarCheck size={24} className="text-paw-pink" />
                 View Saved Events
               </button>
             </div>
           ) : null}
 
           {activePanel === "visits" ? (
-            <div className="grid gap-3">
-              <p className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa">No upcoming visits yet.</p>
-              <button type="button" onClick={() => router.push("/vets")} className="h-12 rounded-xl bg-paw-lavender text-sm font-extrabold text-white shadow-soft">
+            <div className="rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5 text-center">
+              <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-[#ffead5] text-[#ff9a56]">
+                <CalendarCheck size={42} />
+              </div>
+              <h3 className="mt-4 text-[24px] font-black text-paw-cocoa">No upcoming visits yet.</h3>
+              <p className="mx-auto mt-2 max-w-[240px] text-base font-bold leading-snug text-paw-cocoa/70">
+                Book a vet visit when your cat needs care.
+              </p>
+              <button type="button" onClick={() => router.push("/vets")} className="mt-5 h-14 w-full rounded-[22px] bg-paw-lavender text-base font-black text-white shadow-soft">
                 Book a Vet Visit
               </button>
             </div>
           ) : null}
 
           {activePanel === "notifications" ? (
-            <div className="grid gap-3">
+            <div className="grid max-h-[52vh] gap-3 overflow-y-auto rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-4">
               {["New tips are available today.", "Remember to refresh your cat's water.", "Check nearby events this week."].map((item) => (
-                <p key={item} className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa">{item}</p>
+                <p key={item} className="flex min-h-16 items-center gap-3 rounded-2xl bg-white/76 px-4 py-3 text-base font-bold text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                  <Bell size={22} className="shrink-0 text-paw-pink" />
+                  {item}
+                </p>
               ))}
             </div>
           ) : null}
 
           {activePanel === "settings" ? (
-            <div className="grid gap-3">
-              <button type="button" onClick={openEditProfile} className="h-12 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
+            <div className="grid gap-4 rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5">
+              <button type="button" onClick={openEditProfile} className="inline-flex h-14 items-center justify-center gap-3 rounded-[22px] bg-white/80 text-base font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <Edit3 size={21} className="text-paw-pink" />
                 Edit Profile
               </button>
-              <button type="button" onClick={() => router.push("/auth?mode=login")} className="h-12 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
+              <button type="button" onClick={() => router.push("/auth?mode=login")} className="inline-flex h-14 items-center justify-center gap-3 rounded-[22px] bg-white/80 text-base font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <Users size={21} className="text-paw-pink" />
                 Switch Account
               </button>
-              <button type="button" onClick={logout} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft">
+              <button type="button" onClick={logout} className="inline-flex h-14 items-center justify-center gap-2 rounded-[22px] bg-paw-pink text-base font-black text-white shadow-soft">
                 <LogOut size={17} />
                 Log Out
               </button>
             </div>
           ) : null}
+          </div>
         </div>
       ) : null}
 

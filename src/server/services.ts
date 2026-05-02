@@ -42,6 +42,20 @@ export async function loginUser(input: { email: string; password: string }) {
 }
 
 export async function updateUserProfile(userId: string, data: Prisma.UserUpdateInput) {
+  if (typeof data.username === "string") {
+    const existing = await prisma.user.findFirst({
+      where: {
+        username: data.username,
+        NOT: { id: userId }
+      },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new ApiRouteError(409, "CONFLICT", "Username is already in use");
+    }
+  }
+
   const user = await prisma.user.update({
     where: { id: userId },
     data

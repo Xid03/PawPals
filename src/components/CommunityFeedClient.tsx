@@ -6,14 +6,14 @@ import { Bookmark, Flame, Heart, MoreHorizontal, PawPrint, Plus, Search, Users }
 import { BottomNav } from "@/components/BottomNav";
 import type { DisplayPost } from "@/components/PostCard";
 import { apiFetch, isGuestMode, requireSignedIn, type ApiPost } from "@/lib/api-client";
-import { currentUser, posts as mockPosts } from "@/data/mockData";
 import bgArtwork from "../../images/bg.png";
+import profileIcon from "../../images/profileIcon.png";
 
 function mapPost(post: ApiPost): DisplayPost {
   return {
     id: post.id,
     user: post.author?.username ?? "PawPal",
-    avatar: post.author?.avatarUrl ?? currentUser.avatar,
+    avatar: post.author?.avatarUrl ?? profileIcon.src,
     time: new Date(post.createdAt).toLocaleDateString(),
     text: post.text,
     image: post.images?.[0]?.url,
@@ -25,7 +25,7 @@ function mapPost(post: ApiPost): DisplayPost {
 export function CommunityFeedClient() {
   const router = useRouter();
   const [mode, setMode] = useState("for-you");
-  const [posts, setPosts] = useState<DisplayPost[]>(mockPosts);
+  const [posts, setPosts] = useState<DisplayPost[]>([]);
   const [query, setQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [status, setStatus] = useState("");
@@ -36,9 +36,9 @@ export function CommunityFeedClient() {
     setGuest(isGuestMode());
     apiFetch<ApiPost[]>(`/api/feed?mode=${mode}&limit=20`)
       .then((items) => {
-        if (items.length) setPosts(items.map(mapPost));
+        setPosts(items.map(mapPost));
       })
-      .catch((error) => setStatus(error instanceof Error ? error.message : "Using mock posts"));
+      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load posts"));
   }, [mode]);
 
   async function toggle(path: string, success: string) {
@@ -46,7 +46,7 @@ export function CommunityFeedClient() {
       await apiFetch(path, { method: "POST" });
       setStatus(success);
       const items = await apiFetch<ApiPost[]>(`/api/feed?mode=${mode}&limit=20`);
-      if (items.length) setPosts(items.map(mapPost));
+      setPosts(items.map(mapPost));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Action failed");
     }
@@ -160,7 +160,7 @@ export function CommunityFeedClient() {
       </div>
       {status ? <p className="mb-3 px-5 text-xs font-extrabold text-paw-cocoa/70">{status}</p> : null}
       <div className="space-y-4">
-        {visiblePosts.map((post) => (
+        {visiblePosts.length ? visiblePosts.map((post) => (
           <article
             key={post.id}
             className="relative rounded-[24px] bg-white/86 p-4 shadow-soft"
@@ -204,7 +204,13 @@ export function CommunityFeedClient() {
               </div>
             </div>
           </article>
-        ))}
+        )) : (
+          <div className="rounded-[24px] bg-white/86 p-6 text-center shadow-soft">
+            <PawPrint className="mx-auto h-12 w-12 fill-paw-pink/20 text-paw-pink" />
+            <h2 className="mt-3 text-lg font-black text-paw-ink">No posts yet</h2>
+            <p className="mt-2 text-sm font-bold text-paw-cocoa/70">Uploaded posts will appear here.</p>
+          </div>
+        )}
       </div>
       <button
         type="button"

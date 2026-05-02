@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { Bookmark, CalendarDays, CheckCircle2, ImagePlus, MapPin, PawPrint, Search, X } from "lucide-react";
+import { Bookmark, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, ImagePlus, MapPin, PawPrint, Search, Send, Tag, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { TagChip } from "@/components/TagChip";
 import { apiFetch, requireSignedIn, type ApiEvent } from "@/lib/api-client";
 import { events as mockEvents } from "@/data/mockData";
-import catEventImage from "../../images/catEvent.png";
+import catEventImage from "../../images/eventCat.png";
 import eventIcon from "../../images/eventIcon.png";
 
 type EventCategory = "NEARBY" | "WORKSHOPS" | "MEETUPS" | "ADOPTION";
@@ -298,69 +297,107 @@ export function EventsClient() {
   }, [events, filter, hasNearbyLocation, query]);
 
   return (
-    <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
-      <header className="relative mb-7 flex items-center justify-center gap-5 pt-12">
-        <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />
-        <h1 className="text-[34px] font-black leading-none text-paw-ink">Events</h1>
-        <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />
-        <span className="absolute right-6 grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-paw-blush shadow-soft">
-          <img src={eventIcon.src} alt="" className="h-full w-full object-cover" />
-        </span>
-      </header>
-      <label className="paw-input mb-5 flex h-[66px] items-center gap-4 rounded-[22px] px-5">
-        <Search size={25} className="text-paw-cocoa/75" />
-        <input
-          placeholder="Search events..."
-          className="w-full bg-transparent text-lg font-bold outline-none placeholder:text-paw-cocoa/55"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
-      <div className="hide-scrollbar mb-8 flex gap-4 overflow-x-auto">
-        {(["All", "Nearby", "Workshops", "Meetups", "Adoption"] as EventFilter[]).map((item) => (
-          <button key={item} type="button" onClick={() => selectFilter(item)} disabled={item === "Nearby" && isLocatingNearby}>
-            <TagChip active={filter === item} className="h-[46px] min-w-[62px] text-[15px]">
-              {item === "Nearby" && isLocatingNearby ? "Locating..." : item}
-            </TagChip>
+    <section className="min-h-screen bg-[#fff8f2] px-3 pb-24 pt-3">
+      <div className="mx-auto max-w-[430px] rounded-[28px] bg-[#fff2ee]/84 px-4 pb-5 pt-6 shadow-[0_14px_42px_rgba(137,91,77,0.075)]">
+        <header className="relative mb-5 flex items-center justify-center gap-3 pt-5">
+          <PawPrint className="absolute left-1 top-1 h-16 w-16 rotate-[-8deg] fill-paw-rose/10 text-paw-rose/10" />
+          <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />
+          <h1 className="text-[34px] font-black leading-none text-[#2f292d] drop-shadow-sm">Events</h1>
+          <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />
+          <span className="absolute right-2 top-0 grid h-14 w-14 place-items-center overflow-hidden rounded-[18px]">
+            <img src={eventIcon.src} alt="" className="h-full w-full object-cover" />
+          </span>
+        </header>
+
+        <label className="mb-4 flex h-14 items-center gap-3 rounded-[20px] bg-white px-4 shadow-[0_10px_24px_rgba(137,91,77,0.055)]">
+          <Search size={23} className="shrink-0 text-[#8a6760]" />
+          <input
+            placeholder="Search events..."
+            className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#2f292d] outline-none placeholder:text-[#a6918c]"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#ffe7eb] text-paw-pink shadow-soft" aria-label="Filter events">
+            <Filter size={22} />
           </button>
-        ))}
-      </div>
-      {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[21px] font-black">
-          <PawPrint className="fill-paw-rose/25 text-paw-rose" size={22} />
-          Upcoming Events
-        </h2>
-        <button type="button" onClick={showAllEvents} className="text-base font-black text-paw-pink">
-          See all
-        </button>
-      </div>
-      <div className="space-y-4">
-        {visibleEvents.map((event) => (
-          <article key={event.id} className="paw-card flex gap-4 rounded-[20px] p-3">
-            <img src={event.image} alt={event.title} className="h-[104px] w-[104px] shrink-0 rounded-[12px] object-cover" />
-            <div className="min-w-0 flex-1 py-1">
-              <div className="flex items-start gap-3">
-                <h3 className="flex-1 text-[18px] font-black leading-tight text-paw-ink">{event.title}</h3>
-                <button type="button" onClick={() => saveEvent(event.id)} aria-label={savedEventIds.has(event.id) ? "Remove saved event" : "Save event"}>
-                  <Bookmark
-                    className={`shrink-0 text-paw-pink ${savedEventIds.has(event.id) ? "fill-paw-pink" : "fill-transparent"}`}
-                    size={21}
-                  />
-                </button>
+        </label>
+
+        <div className="hide-scrollbar mb-6 flex gap-3 overflow-x-auto">
+          {(["All", "Nearby", "Workshops", "Meetups"] as EventFilter[]).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => selectFilter(item)}
+              disabled={item === "Nearby" && isLocatingNearby}
+              className={`h-9 shrink-0 rounded-[15px] px-4 text-xs font-black shadow-[0_7px_16px_rgba(137,91,77,0.05)] ${
+                filter === item ? "bg-gradient-to-br from-[#b869ee] to-[#8b5be5] text-white" : "bg-white text-[#33272a]"
+              }`}
+            >
+              {item === "Nearby" && isLocatingNearby ? "Locating..." : item}
+            </button>
+          ))}
+        </div>
+
+        {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-[21px] font-black text-[#2f292d]">
+            <PawPrint className="h-6 w-6 fill-paw-pink/45 text-paw-pink" />
+            Upcoming Events
+          </h2>
+          {filter !== "All" ? (
+            <button type="button" onClick={showAllEvents} className="inline-flex items-center gap-1 text-base font-black text-paw-pink">
+              See all
+              <ChevronRight size={19} />
+            </button>
+          ) : null}
+        </div>
+
+        <div className="space-y-3">
+          {visibleEvents.map((event) => (
+            <article key={event.id} className="flex gap-3 rounded-[22px] bg-white p-3 shadow-[0_10px_26px_rgba(137,91,77,0.06)]">
+              <img src={event.image} alt={event.title} className="h-[96px] w-[96px] shrink-0 rounded-[16px] object-cover" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-3">
+                  <h3 className="line-clamp-2 flex-1 text-lg font-black leading-tight text-[#2f292d]">{event.title}</h3>
+                  <button
+                    type="button"
+                    onClick={() => saveEvent(event.id)}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#fff4f5] text-paw-pink"
+                    aria-label={savedEventIds.has(event.id) ? "Remove saved event" : "Save event"}
+                  >
+                    <Bookmark
+                      className={`${savedEventIds.has(event.id) ? "fill-paw-pink" : "fill-transparent"}`}
+                      size={20}
+                      strokeWidth={2.6}
+                    />
+                  </button>
+                </div>
+                <p className="mt-2 flex items-center gap-2 text-xs font-black text-[#a18a85]">
+                  <CalendarDays size={15} className="shrink-0 text-paw-pink" /> {event.date}
+                </p>
+                <p className="mt-1.5 flex items-center gap-2 text-xs font-black text-[#a18a85]">
+                  <MapPin size={15} className="shrink-0 text-paw-pink" /> <span className="line-clamp-1">{event.place}</span>
+                </p>
+                <p className="mt-1.5 flex items-center gap-2 text-xs font-black text-[#a18a85]">
+                  <MapPin size={15} className="shrink-0 text-paw-pink" /> <span className="line-clamp-1">{event.distance}</span>
+                </p>
               </div>
-              <p className="mt-3 flex items-center gap-2 text-[13px] font-extrabold text-paw-cocoa/75"><CalendarDays size={15} /> {event.date}</p>
-              <p className="mt-2 flex items-center gap-2 text-[13px] font-extrabold text-paw-cocoa/75"><MapPin size={15} /> {event.place}</p>
-              <p className="mt-2 flex items-center gap-2 text-[13px] font-extrabold text-paw-cocoa/75"><MapPin size={15} /> {event.distance}</p>
-            </div>
-          </article>
-        ))}
+            </article>
+          ))}
+        </div>
       </div>
-      <section className="paw-card mt-7 flex items-center gap-4 overflow-hidden rounded-[20px] border-paw-peach/80 bg-paw-blush/70 p-4">
-        <img src={catEventImage.src} alt="" className="h-[88px] w-[112px] shrink-0 object-cover object-center" />
+
+      <section className="mx-auto mt-4 flex max-w-[430px] items-center gap-3 overflow-hidden rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_32px_rgba(137,91,77,0.085)]">
+        <div className="relative grid h-24 w-24 shrink-0 place-items-center">
+          <div className="absolute inset-1 rounded-full bg-paw-blush/70" />
+          <PawPrint className="absolute left-0 top-2 h-4 w-4 rotate-[-18deg] fill-paw-pink/35 text-paw-pink/35" />
+          <img src={catEventImage.src} alt="" className="relative z-10 h-20 w-20 object-contain" />
+        </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[18px] font-black leading-tight">Have an event to share?</h2>
-          <p className="mb-3 text-[14px] font-extrabold leading-tight text-paw-cocoa/75">Let the PawPals community know!</p>
+          <h2 className="text-xl font-black leading-tight text-[#2f292d]">Have an event to share?</h2>
+          <p className="mt-1.5 text-sm font-black leading-snug text-[#a18a85]">
+            Let the <span className="text-paw-pink">PawPals</span> community know!
+          </p>
           <button
             type="button"
             onClick={() => {
@@ -371,125 +408,190 @@ export function EventsClient() {
                 setStatus(error instanceof Error ? error.message : "Please log in to create events.");
               }
             }}
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft"
+            className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-paw-rose to-paw-pink text-sm font-black text-white shadow-[0_10px_22px_rgba(247,101,137,0.22)]"
           >
+            <CalendarDays size={20} />
             Create Event
+            <ChevronRight size={22} />
           </button>
         </div>
       </section>
       {isCreatingEvent ? (
-        <form onSubmit={createEvent} className="paw-card mt-4 rounded-[20px] p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-black text-paw-ink">Event Details</h2>
-            <button
-              type="button"
-              onClick={() => {
-                resetEventForm();
-                setIsCreatingEvent(false);
-              }}
-              className="grid h-9 w-9 place-items-center rounded-full bg-white/70 text-paw-cocoa"
-              aria-label="Close event form"
-            >
-              <X size={18} />
-            </button>
-          </div>
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-paw-ink/25 px-4 py-2 backdrop-blur-sm">
+          <form
+            onSubmit={createEvent}
+            className="mx-auto w-full max-w-[372px] rounded-[22px] bg-[#fffaf5] p-4 shadow-[0_18px_48px_rgba(58,38,38,0.18)]"
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[25px] font-black leading-none text-[#2f292d]">Event Details</h2>
+                <p className="mt-1.5 text-xs font-bold leading-snug text-paw-cocoa/78">
+                  Fill in the details to share your event with the community.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  resetEventForm();
+                  setIsCreatingEvent(false);
+                }}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-paw-blush/70 text-paw-cocoa shadow-soft"
+                aria-label="Close event form"
+              >
+                <X size={22} strokeWidth={3} />
+              </button>
+            </div>
 
-          <label className="mb-3 block">
-            <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">Title</span>
-            <input
-              required
-              maxLength={140}
-              value={eventForm.title}
-              onChange={(event) => updateEventForm("title", event.target.value)}
-              className="paw-input h-12 w-full rounded-2xl px-4 text-sm font-bold"
-              placeholder="Cat cafe meetup"
-            />
-          </label>
-
-          <label className="mb-3 block">
-            <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">Description</span>
-            <textarea
-              maxLength={1000}
-              value={eventForm.description}
-              onChange={(event) => updateEventForm("description", event.target.value)}
-              className="paw-input min-h-24 w-full resize-none rounded-2xl px-4 py-3 text-sm font-bold"
-              placeholder="Share the plan, supplies, or who should join."
-            />
-          </label>
-
-          <div className="mb-3 grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">Date</span>
+            <label className="mb-2.5 block">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase text-paw-cocoa">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                  <Edit3 size={14} />
+                </span>
+                Title
+              </span>
               <input
                 required
-                type="datetime-local"
-                value={eventForm.startsAt}
-                onChange={(event) => updateEventForm("startsAt", event.target.value)}
-                className="paw-input h-12 w-full rounded-2xl px-3 text-xs font-bold"
+                maxLength={140}
+                value={eventForm.title}
+                onChange={(event) => updateEventForm("title", event.target.value)}
+                className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-4 text-xs font-black text-[#334155] outline-none transition focus:border-paw-pink/60 focus:shadow-[0_0_0_4px_rgba(247,101,137,0.12)]"
+                placeholder="Cat cafe meetup"
               />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">Type</span>
-              <select
-                value={eventForm.category}
-                onChange={(event) => updateEventForm("category", event.target.value as EventCategory)}
-                className="paw-input h-12 w-full rounded-2xl px-3 text-xs font-bold"
-              >
-                {eventCategories.map((category) => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
+
+            <label className="mb-2.5 block">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase text-paw-cocoa">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                  <ClipboardList size={14} />
+                </span>
+                Description
+              </span>
+              <span className="relative block">
+                <textarea
+                  maxLength={500}
+                  value={eventForm.description}
+                  onChange={(event) => updateEventForm("description", event.target.value)}
+                  className="min-h-[66px] w-full resize-none rounded-[14px] border border-paw-peach/65 bg-white/66 px-4 py-2.5 pr-14 text-xs font-black text-[#334155] outline-none transition focus:border-paw-pink/60 focus:shadow-[0_0_0_4px_rgba(247,101,137,0.12)]"
+                  placeholder="Share the plan, supplies, or who should join."
+                />
+                <span className="pointer-events-none absolute bottom-2.5 right-4 text-[11px] font-bold text-paw-cocoa/70">
+                  {eventForm.description.length}/500
+                </span>
+              </span>
             </label>
-          </div>
 
-          <label className="mb-3 block">
-            <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">Location</span>
-            <input
-              required
-              maxLength={160}
-              value={eventForm.location}
-              onChange={(event) => updateEventForm("location", event.target.value)}
-              className="paw-input h-12 w-full rounded-2xl px-4 text-sm font-bold"
-              placeholder="PawPals Community Center"
-            />
-          </label>
+            <div className="mb-2.5 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase text-paw-cocoa">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                    <CalendarDays size={13} />
+                  </span>
+                  Date & Time
+                </span>
+                <input
+                  required
+                  type="datetime-local"
+                  value={eventForm.startsAt}
+                  onChange={(event) => updateEventForm("startsAt", event.target.value)}
+                  className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-2.5 text-[10px] font-black text-[#2f292d] outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase text-paw-cocoa">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                    <Tag size={13} />
+                  </span>
+                  Type
+                </span>
+                <span className="relative block">
+                  <select
+                    value={eventForm.category}
+                    onChange={(event) => updateEventForm("category", event.target.value as EventCategory)}
+                    className="h-10 w-full appearance-none rounded-[14px] border border-paw-peach/65 bg-white/66 px-3 pr-8 text-xs font-black text-[#2f292d] outline-none"
+                  >
+                    {eventCategories.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-paw-cocoa" size={18} />
+                </span>
+              </label>
+            </div>
 
-          <label className="mb-4 block">
-            <span className="mb-2 block text-xs font-black uppercase text-paw-cocoa/70">City</span>
-            <input
-              maxLength={80}
-              value={eventForm.city}
-              onChange={(event) => updateEventForm("city", event.target.value)}
-              className="paw-input h-12 w-full rounded-2xl px-4 text-sm font-bold"
-              placeholder="New York"
-            />
-          </label>
+            <label className="mb-2.5 block">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase text-paw-cocoa">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                  <MapPin size={14} />
+                </span>
+                Location
+              </span>
+              <span className="relative block">
+                <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-paw-lavender" size={17} />
+                <input
+                  required
+                  maxLength={160}
+                  value={eventForm.location}
+                  onChange={(event) => updateEventForm("location", event.target.value)}
+                  className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-10 pr-4 text-[11px] font-black text-[#334155] outline-none"
+                  placeholder="PawPals Community Center"
+                />
+              </span>
+            </label>
 
-          <div className="mb-5 flex items-center gap-3">
-            {imagePreview ? (
-              <img src={imagePreview} alt="" className="h-20 w-20 shrink-0 rounded-2xl object-cover" />
-            ) : (
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-white/70 text-paw-cocoa">
-                <ImagePlus size={26} />
+            <label className="mb-2.5 block">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase text-paw-cocoa">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-paw-blush text-paw-pink">
+                  <Building2 size={14} />
+                </span>
+                City
+              </span>
+              <span className="relative block">
+                <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-paw-lavender" size={17} />
+                <input
+                  maxLength={80}
+                  value={eventForm.city}
+                  onChange={(event) => updateEventForm("city", event.target.value)}
+                  className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-10 pr-4 text-[11px] font-black text-[#334155] outline-none"
+                  placeholder="New York"
+                />
+              </span>
+            </label>
+
+            <div className="mb-3">
+              <p className="mb-1.5 text-[11px] font-black uppercase text-paw-cocoa">
+                Event Image <span className="text-paw-pink">(Optional)</span>
+              </p>
+              <div className="flex items-center gap-3">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border-2 border-dashed border-paw-rose/50 text-paw-cocoa/70">
+                    <ImagePlus size={18} />
+                  </div>
+                )}
+                <label className="flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-paw-peach/55 bg-paw-blush/22 px-3 text-center">
+                  <ImagePlus size={17} className="shrink-0 text-paw-cocoa/70" />
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-paw-cocoa">Add Event Image</span>
+                    <span className="mt-0.5 block text-[9px] font-bold text-paw-cocoa/70">JPG, PNG up to 10MB</span>
+                  </span>
+                  <input type="file" accept="image/*" onChange={selectEventImage} className="hidden" />
+                </label>
               </div>
-            )}
-            <label className="inline-flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-white/70 px-4 text-sm font-extrabold text-paw-cocoa">
-              <ImagePlus size={18} />
-              Add Event Image
-              <input type="file" accept="image/*" onChange={selectEventImage} className="hidden" />
-            </label>
-          </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={isSubmittingEvent}
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSubmittingEvent ? "Creating..." : "Post Event"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={isSubmittingEvent}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-paw-rose to-paw-pink text-base font-black text-white shadow-[0_10px_22px_rgba(247,101,137,0.2)] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Send size={18} />
+              {isSubmittingEvent ? "Creating..." : "Post Event"}
+            </button>
+          </form>
+        </div>
       ) : null}
       {showEventSuccess ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-paw-ink/30 px-5 backdrop-blur-sm">

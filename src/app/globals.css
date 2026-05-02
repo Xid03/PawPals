@@ -69,3 +69,27 @@ a {
 .cat-ear-right {
   clip-path: polygon(50% 0, 0 100%, 100% 100%);
 }
+
+@keyframes story-slide-left {
+  0% {
+    opacity: 0.65;
+    transform: translateX(38px) scale(0.985);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes story-slide-right {
+  0% {
+    opacity: 0.65;
+    transform: translateX(-38px) scale(0.985);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
