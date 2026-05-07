@@ -28,6 +28,16 @@ type FollowRequest = {
   createdAt: string;
 };
 
+type ProfileStory = {
+  id: string;
+  authorId: string;
+  url: string;
+  type: "IMAGE" | "VIDEO";
+  caption?: string | null;
+  createdAt: string;
+  author?: PublicUser;
+};
+
 const profileActions = [
   { label: "My PawPals", panel: "followers" as const, icon: Users, bubble: "bg-[#eee4ff] text-paw-lavender" },
   { label: "Saved Posts", panel: "saved" as const, icon: Bookmark, bubble: "bg-[#ffe1ec] text-paw-pink" },
@@ -58,6 +68,9 @@ export default function UserProfilePage() {
   const [following, setFollowing] = useState<PublicUser[]>([]);
   const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
   const [isLoadingFollowRequests, setIsLoadingFollowRequests] = useState(false);
+  const [stories, setStories] = useState<ProfileStory[]>([]);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [isLoadingStories, setIsLoadingStories] = useState(false);
 
   useEffect(() => {
     if (isGuestMode()) {
@@ -69,6 +82,7 @@ export default function UserProfilePage() {
       setBio("");
       setIsPrivate(false);
       setStats({ posts: 0, followers: 0, following: 0 });
+      setStories([]);
       return;
     }
 
@@ -90,6 +104,7 @@ export default function UserProfilePage() {
   const displayName = guest ? "Guest" : user?.name ?? name;
   const displayRole = guest ? "Browsing PawPals" : user ? `@${user.username}` : currentUser.role;
   const avatar = user?.avatarUrl ?? currentUser.catAvatar;
+  const activeStory = activeStoryIndex === null ? null : stories[activeStoryIndex] ?? null;
   const activePanelTitle =
     activePanel === "posts"
       ? "My Posts"
@@ -104,20 +119,23 @@ export default function UserProfilePage() {
               : "Settings";
 
   async function loadProfileData(userId: string) {
-    try {
-      const [profileData, postsData, followersData, followingData] = await Promise.all([
-        apiFetch<{ stats: ProfileStats }>(`/api/users/${userId}`),
-        apiFetch<ApiPost[]>(`/api/posts?authorId=${userId}&limit=20`),
-        apiFetch<PublicUser[]>(`/api/users/${userId}/followers?limit=50`),
-        apiFetch<PublicUser[]>(`/api/users/${userId}/following?limit=50`)
-      ]);
-      setStats(profileData.stats);
-      setProfilePosts(postsData);
-      setFollowers(followersData);
-      setFollowing(followingData);
-    } catch {
+    const [profileResult, postsResult, followersResult, followingResult, storiesResult] = await Promise.allSettled([
+      apiFetch<{ stats: ProfileStats }>(`/api/users/${userId}`),
+      apiFetch<ApiPost[]>(`/api/posts?authorId=${userId}&limit=20`),
+      apiFetch<PublicUser[]>(`/api/users/${userId}/followers?limit=50`),
+      apiFetch<PublicUser[]>(`/api/users/${userId}/following?limit=50`),
+      apiFetch<ProfileStory[]>("/api/stories?mine=true&limit=50")
+    ]);
+
+    if (profileResult.status === "fulfilled") {
+      setStats(profileResult.value.stats);
+    } else {
       setStats({ posts: 0, followers: 0, following: 0 });
     }
+    if (postsResult.status === "fulfilled") setProfilePosts(postsResult.value);
+    if (followersResult.status === "fulfilled") setFollowers(followersResult.value);
+    if (followingResult.status === "fulfilled") setFollowing(followingResult.value);
+    if (storiesResult.status === "fulfilled") setStories(storiesResult.value);
   }
 
   async function loadFollowRequests() {
@@ -156,6 +174,42 @@ export default function UserProfilePage() {
     } catch {
       setStatus("");
     }
+  }
+
+  async function loadProfileStories() {
+    setIsLoadingStories(true);
+    try {
+      const storiesData = await apiFetch<ProfileStory[]>("/api/stories?mine=true&limit=50");
+      setStories(storiesData);
+      return storiesData;
+    } finally {
+      setIsLoadingStories(false);
+    }
+  }
+
+  async function openStoryViewer() {
+    if (guest) return;
+    if (!user?.id) return;
+    const loadedStories = await loadProfileStories().catch(() => stories);
+    if (!loadedStories.length) {
+      setStatus("No stories uploaded yet.");
+      return;
+    }
+    setActiveStoryIndex(0);
+  }
+
+  function showNextStory() {
+    setActiveStoryIndex((current) => {
+      if (current === null) return null;
+      return current + 1 < stories.length ? current + 1 : null;
+    });
+  }
+
+  function showPreviousStory() {
+    setActiveStoryIndex((current) => {
+      if (current === null) return null;
+      return current > 0 ? current - 1 : current;
+    });
   }
 
   function chooseAvatar(file: File | null | undefined) {
@@ -293,16 +347,29 @@ export default function UserProfilePage() {
               <img src={profileIcon.src} alt="Guest" className="h-full w-full object-cover" />
             </div>
           ) : (
-            <div className="relative mx-auto h-24 w-24">
+            <button
+              type="button"
+              onClick={openStoryViewer}
+              disabled={isLoadingStories}
+              className="relative mx-auto block h-24 w-24 rounded-full focus:outline-none focus:ring-4 focus:ring-paw-pink/30 disabled:opacity-80"
+              aria-label="View your stories"
+            >
+              <span className={`absolute inset-[-4px] rounded-full ${stories.length ? "bg-gradient-to-tr from-paw-pink via-paw-lavender to-paw-butter p-[3px]" : "bg-transparent"}`}>
+                <span className="block h-full w-full rounded-full bg-white" />
+              </span>
               <img
                 src={avatar}
                 alt={displayName}
-                className="h-full w-full rounded-full border-[5px] border-white object-cover shadow-soft"
+                className="relative h-full w-full rounded-full border-[5px] border-white object-cover shadow-soft"
               />
               <span className="absolute bottom-0 right-0 grid h-9 w-9 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
-                <PawPrint size={20} className="fill-paw-pink/25" />
+                {isLoadingStories ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-paw-pink/30 border-t-paw-pink" />
+                ) : (
+                  <PawPrint size={20} className="fill-paw-pink/25" />
+                )}
               </span>
-            </div>
+            </button>
           )}
         </div>
       </div>
@@ -506,6 +573,51 @@ export default function UserProfilePage() {
               <Sparkles className="absolute right-7 top-4 h-5 w-5 fill-white/30 text-white/30" />
             </button>
           </form>
+        </div>
+      ) : null}
+
+      {activeStory ? (
+        <div className="fixed inset-0 z-[70] bg-paw-ink/95 text-white">
+          <div className="mx-auto flex h-full max-w-[430px] flex-col px-4 pb-5 pt-4">
+            <div className="mb-4 flex gap-1">
+              {stories.map((story, index) => (
+                <span key={story.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/30">
+                  <span className={`block h-full rounded-full bg-white transition-all duration-300 ${activeStoryIndex !== null && index <= activeStoryIndex ? "w-full" : "w-0"}`} />
+                </span>
+              ))}
+            </div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <img src={avatar} alt={displayName} className="h-10 w-10 rounded-full object-cover ring-2 ring-white" />
+                <div className="min-w-0 text-left">
+                  <p className="truncate text-sm font-black">{displayName}</p>
+                  <p className="text-xs font-bold text-white/65">{new Date(activeStory.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveStoryIndex(null)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/12 text-white"
+                aria-label="Close story"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="relative min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black shadow-[0_24px_70px_rgba(0,0,0,0.35)]">
+              {activeStory.type === "VIDEO" ? (
+                <video src={activeStory.url} className="h-full w-full object-contain" controls autoPlay />
+              ) : (
+                <img src={activeStory.url} alt={activeStory.caption || "Story"} className="h-full w-full object-contain" />
+              )}
+              <button type="button" onClick={showPreviousStory} className="absolute inset-y-0 left-0 w-1/3" aria-label="Previous story" />
+              <button type="button" onClick={showNextStory} className="absolute inset-y-0 right-0 w-1/3" aria-label="Next story" />
+              {activeStory.caption ? (
+                <p className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/45 px-4 py-3 text-center text-sm font-bold leading-relaxed backdrop-blur-sm">
+                  {activeStory.caption}
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
 

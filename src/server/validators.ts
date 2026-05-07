@@ -106,7 +106,8 @@ export const notificationSchema = z.object({
     "POST_LIKE",
     "POST_COMMENT",
     "EVENT_REMINDER",
-    "FOLLOW_REQUEST"
+    "FOLLOW_REQUEST",
+    "NEW_FOLLOWER"
   ]),
   title: z.string().min(1).max(160),
   body: z.string().min(1).max(400),

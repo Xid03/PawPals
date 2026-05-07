@@ -31,12 +31,26 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           select: { status: true }
         })
       : null;
+    const incomingFollowRequest = auth && !follow
+      ? await prisma.followRequest.findUnique({
+          where: { requesterId_targetId: { requesterId: params.id, targetId: auth.id } },
+          select: { id: true, status: true }
+        })
+      : null;
+    const followedByViewedUser = auth
+      ? await prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: params.id, followingId: auth.id } },
+          select: { id: true }
+        })
+      : null;
     return ok({
       user: publicUser(user),
       cats: canViewPrivate ? user.cats : [],
       stats: canViewPrivate ? user._count : { posts: 0, followers: 0, following: 0 },
       isFollowing: Boolean(follow),
+      isFollowedByViewedUser: Boolean(followedByViewedUser),
       followRequestStatus: followRequest?.status ?? null,
+      incomingFollowRequest: incomingFollowRequest?.status === "PENDING" ? incomingFollowRequest : null,
       canViewPrivate
     });
   } catch (error) {

@@ -8,6 +8,7 @@ import { Bell, ChevronRight, MapPin, PawPrint, Search, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { useCurrentUser } from "@/components/CurrentUserProvider";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
+import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, ageLabel, catImage, distanceLabel, isGuestMode, type ApiCat, type ApiPost, type PublicUser } from "@/lib/api-client";
 import { cats as mockCats, quickActions } from "@/data/mockData";
 import backgroundButton from "../../images/backgroundButton.png";
@@ -20,9 +21,12 @@ type NotificationItem = {
   body?: string | null;
   type: string;
   data?: Record<string, unknown> | null;
+  requester?: PublicUser | null;
   readAt?: string | null;
   createdAt: string;
 };
+
+const FOLLOW_BACK_EVENT = "pawpals:follow-back";
 
 function mapPost(post: ApiPost): DisplayPost {
   return {
@@ -58,6 +62,8 @@ export function HomeClient({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsStatus, setNotificationsStatus] = useState("");
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [acceptingFollowRequestIds, setAcceptingFollowRequestIds] = useState<Set<string>>(() => new Set());
+  const [followBackStatusByUserId, setFollowBackStatusByUserId] = useState<Record<string, "loading" | "following" | "requested">>({});
   const [homeSearch, setHomeSearch] = useState("");
   const [userSearchResults, setUserSearchResults] = useState<PublicUser[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
@@ -176,6 +182,32 @@ export function HomeClient({
     };
   }, [normalizedHomeSearch]);
 
+  useEffect(() => {
+    function handleFollowBack(event: Event) {
+      const detail = (event as CustomEvent<{ userId?: string; status?: "following" | "requested" }>).detail;
+      if (!detail?.userId || !detail.status) return;
+
+      setFollowBackStatusByUserId((current) => ({ ...current, [detail.userId as string]: detail.status as "following" | "requested" }));
+      setNotifications((current) =>
+        current.map((notification) => {
+          const followerId = typeof notification.data?.followerId === "string" ? notification.data.followerId : "";
+          return followerId === detail.userId
+            ? {
+                ...notification,
+                data: {
+                  ...(notification.data ?? {}),
+                  followBackStatus: detail.status
+                }
+              }
+            : notification;
+        })
+      );
+    }
+
+    window.addEventListener(FOLLOW_BACK_EVENT, handleFollowBack);
+    return () => window.removeEventListener(FOLLOW_BACK_EVENT, handleFollowBack);
+  }, []);
+
   function submitHomeSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!normalizedHomeSearch) return;
@@ -265,6 +297,8 @@ export function HomeClient({
   function notificationHref(item: NotificationItem) {
     const postId = typeof item.data?.postId === "string" ? item.data.postId : "";
     const matchId = typeof item.data?.matchId === "string" ? item.data.matchId : "";
+    const requesterId = typeof item.data?.requesterId === "string" ? item.data.requesterId : item.requester?.id ?? "";
+    const followerId = typeof item.data?.followerId === "string" ? item.data.followerId : "";
 
     switch (item.type) {
       case "POST_LIKE":
@@ -276,8 +310,82 @@ export function HomeClient({
         return matchId ? `/chats?matchId=${encodeURIComponent(matchId)}` : "/chats";
       case "EVENT_REMINDER":
         return "/events";
+      case "FOLLOW_REQUEST":
+        return requesterId ? `/users/${encodeURIComponent(requesterId)}` : "/profile";
+      case "NEW_FOLLOWER":
+        return followerId ? `/users/${encodeURIComponent(followerId)}` : "/profile";
       default:
         return "/home";
+    }
+  }
+
+  async function acceptFollowRequest(item: NotificationItem) {
+    const followRequestId = typeof item.data?.followRequestId === "string" ? item.data.followRequestId : "";
+    if (!followRequestId) {
+      setNotificationsStatus("Follow request is no longer available.");
+      return;
+    }
+
+    try {
+      setAcceptingFollowRequestIds((current) => new Set(current).add(followRequestId));
+      await apiFetch(`/api/follow-requests/${followRequestId}/approve`, { method: "POST" });
+      await markNotificationRead(item.id);
+      setNotifications((current) => current.filter((notification) => notification.id !== item.id));
+      setNotificationsStatus("Follow request accepted.");
+    } catch (error) {
+      setNotificationsStatus(error instanceof Error ? error.message : "Could not accept follow request.");
+    } finally {
+      setAcceptingFollowRequestIds((current) => {
+        const next = new Set(current);
+        next.delete(followRequestId);
+        return next;
+      });
+    }
+  }
+
+  async function followBack(item: NotificationItem) {
+    const followerId = typeof item.data?.followerId === "string" ? item.data.followerId : "";
+    if (!followerId) {
+      setNotificationsStatus("Follower account is no longer available.");
+      return;
+    }
+
+    setFollowBackStatusByUserId((current) => ({ ...current, [followerId]: "loading" }));
+    try {
+      const data = await apiFetch<{ following: boolean; requested?: boolean }>(`/api/users/${followerId}/follow`, {
+        method: "POST"
+      });
+      await markNotificationRead(item.id);
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === item.id
+            ? {
+                ...notification,
+                data: {
+                  ...(notification.data ?? {}),
+                  followBackStatus: data.requested ? "requested" : "following"
+                }
+              }
+            : notification
+        )
+      );
+      setFollowBackStatusByUserId((current) => ({
+        ...current,
+        [followerId]: data.requested ? "requested" : "following"
+      }));
+      window.dispatchEvent(
+        new CustomEvent(FOLLOW_BACK_EVENT, {
+          detail: { userId: followerId, status: data.requested ? "requested" : "following" }
+        })
+      );
+      setNotificationsStatus(data.requested ? "Follow request sent." : "You followed back.");
+    } catch (error) {
+      setFollowBackStatusByUserId((current) => {
+        const next = { ...current };
+        delete next[followerId];
+        return next;
+      });
+      setNotificationsStatus(error instanceof Error ? error.message : "Could not follow back.");
     }
   }
 
@@ -504,6 +612,7 @@ export function HomeClient({
       )}
       {showNotifications ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-paw-ink/25 px-5 backdrop-blur-sm">
+          <StatusToast message={notificationsStatus} onDismiss={() => setNotificationsStatus("")} />
           <div className="w-full max-w-[350px] rounded-[28px] border border-paw-peach/70 bg-[#fff8ef] p-5 shadow-paw">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -526,10 +635,27 @@ export function HomeClient({
             ) : notifications.length ? (
               <div className="max-h-[330px] space-y-3 overflow-y-auto pr-1">
                 {notifications.map((item) => (
-                  <button
+                  (() => {
+                    const followRequestId = typeof item.data?.followRequestId === "string" ? item.data.followRequestId : "";
+                    const followerId = typeof item.data?.followerId === "string" ? item.data.followerId : "";
+                    const isAccepting = followRequestId ? acceptingFollowRequestIds.has(followRequestId) : false;
+                    const savedFollowBackStatus =
+                      item.data?.followBackStatus === "following" || item.data?.followBackStatus === "requested"
+                        ? item.data.followBackStatus
+                        : undefined;
+                    const followBackStatus = followerId ? followBackStatusByUserId[followerId] ?? savedFollowBackStatus : savedFollowBackStatus;
+                    return (
+                  <div
                     key={item.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openNotification(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        void openNotification(item);
+                      }
+                    }}
                     className="flex w-full gap-3 rounded-2xl bg-white/80 p-3 text-left shadow-[0_8px_18px_rgba(122,81,63,0.06)]"
                     aria-label={`Open notification: ${item.title}`}
                   >
@@ -537,11 +663,47 @@ export function HomeClient({
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-black text-paw-ink">{item.title}</span>
                       {item.body ? <span className="mt-1 block text-xs font-bold leading-relaxed text-paw-cocoa/70">{item.body}</span> : null}
+                      {item.type === "FOLLOW_REQUEST" && followRequestId ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void acceptFollowRequest(item);
+                          }}
+                          disabled={isAccepting}
+                          className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-paw-pink px-4 text-xs font-black text-white shadow-soft disabled:opacity-70"
+                        >
+                          {isAccepting ? "Accepting..." : "Accept"}
+                        </button>
+                      ) : null}
+                      {item.type === "NEW_FOLLOWER" && followerId ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void followBack(item);
+                          }}
+                          disabled={followBackStatus === "loading" || followBackStatus === "following" || followBackStatus === "requested"}
+                          className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-paw-pink px-4 text-xs font-black text-white shadow-soft disabled:opacity-70"
+                        >
+                          {followBackStatus === "loading"
+                            ? "Following..."
+                            : followBackStatus === "following"
+                              ? "Following"
+                              : followBackStatus === "requested"
+                                ? "Requested"
+                                : "Follow Back"}
+                        </button>
+                      ) : null}
                       <span className="mt-2 block text-[11px] font-black uppercase text-paw-pink/80">
                         {new Date(item.createdAt).toLocaleDateString()}
                       </span>
                     </span>
-                  </button>
+                  </div>
+                    );
+                  })()
                 ))}
               </div>
             ) : (

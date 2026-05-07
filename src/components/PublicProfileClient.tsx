@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileText, Heart, Lock, MapPin, MessageCircle, PawPrint, UserPlus } from "lucide-react";
+import { ArrowLeft, FileText, Heart, Lock, MapPin, MessageCircle, PawPrint, UserPlus, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiCat, type ApiPost, type PublicUser } from "@/lib/api-client";
@@ -15,31 +15,67 @@ type ProfileStats = {
   following: number;
 };
 
+type IncomingFollowRequest = {
+  id: string;
+  status: string;
+};
+
+type ConnectionPanel = "followers" | "following" | null;
+
+const FOLLOW_BACK_EVENT = "pawpals:follow-back";
+
 export function PublicProfileClient({ id }: { id: string }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [cats, setCats] = useState<ApiCat[]>([]);
   const [posts, setPosts] = useState<ApiPost[]>([]);
+  const [followers, setFollowers] = useState<PublicUser[]>([]);
+  const [following, setFollowing] = useState<PublicUser[]>([]);
   const [stats, setStats] = useState<ProfileStats>({ posts: 0, followers: 0, following: 0 });
   const [status, setStatus] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowedByViewedUser, setIsFollowedByViewedUser] = useState(false);
   const [followRequestStatus, setFollowRequestStatus] = useState<string | null>(null);
+  const [incomingFollowRequest, setIncomingFollowRequest] = useState<IncomingFollowRequest | null>(null);
   const [canViewPrivate, setCanViewPrivate] = useState(true);
+  const [activeConnectionPanel, setActiveConnectionPanel] = useState<ConnectionPanel>(null);
+  const [isLoadingConnections, setIsLoadingConnections] = useState(false);
 
   useEffect(() => {
-    apiFetch<{ user: PublicUser; cats: ApiCat[]; stats: ProfileStats; isFollowing: boolean; followRequestStatus: string | null; canViewPrivate: boolean }>(`/api/users/${id}`)
+    apiFetch<{
+      user: PublicUser;
+      cats: ApiCat[];
+      stats: ProfileStats;
+      isFollowing: boolean;
+      isFollowedByViewedUser: boolean;
+      followRequestStatus: string | null;
+      incomingFollowRequest: IncomingFollowRequest | null;
+      canViewPrivate: boolean;
+    }>(`/api/users/${id}`)
       .then((data) => {
         setUser(data.user);
         setCats(data.cats);
         setStats(data.stats);
         setIsFollowing(data.isFollowing);
+        setIsFollowedByViewedUser(data.isFollowedByViewedUser);
         setFollowRequestStatus(data.followRequestStatus);
+        setIncomingFollowRequest(data.incomingFollowRequest);
         setCanViewPrivate(data.canViewPrivate);
         if (!data.canViewPrivate) {
           setPosts([]);
+          setFollowers([]);
+          setFollowing([]);
           return;
         }
-        apiFetch<ApiPost[]>(`/api/posts?authorId=${id}&limit=10`)
-          .then(setPosts)
+        Promise.all([
+          apiFetch<ApiPost[]>(`/api/posts?authorId=${id}&limit=10`),
+          apiFetch<PublicUser[]>(`/api/users/${id}/followers?limit=50`),
+          apiFetch<PublicUser[]>(`/api/users/${id}/following?limit=50`)
+        ])
+          .then(([postsData, followersData, followingData]) => {
+            setPosts(postsData);
+            setFollowers(followersData);
+            setFollowing(followingData);
+          })
           .catch(() => undefined);
       })
       .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load profile"));
@@ -49,10 +85,12 @@ export function PublicProfileClient({ id }: { id: string }) {
     if (followRequestStatus !== "PENDING") return;
 
     const timer = window.setInterval(() => {
-      apiFetch<{ isFollowing: boolean; followRequestStatus: string | null; canViewPrivate: boolean }>(`/api/users/${id}`)
+      apiFetch<{ isFollowing: boolean; isFollowedByViewedUser: boolean; followRequestStatus: string | null; incomingFollowRequest: IncomingFollowRequest | null; canViewPrivate: boolean }>(`/api/users/${id}`)
         .then((data) => {
           setIsFollowing(data.isFollowing);
+          setIsFollowedByViewedUser(data.isFollowedByViewedUser);
           setFollowRequestStatus(data.followRequestStatus);
+          setIncomingFollowRequest(data.incomingFollowRequest);
           setCanViewPrivate(data.canViewPrivate);
           if (data.isFollowing) {
             setStatus("Follow request approved.");
@@ -67,11 +105,29 @@ export function PublicProfileClient({ id }: { id: string }) {
   async function toggleFollow() {
     try {
       requireSignedIn();
+      if (incomingFollowRequest?.id) {
+        await apiFetch(`/api/follow-requests/${incomingFollowRequest.id}/approve`, { method: "POST" });
+        setIncomingFollowRequest(null);
+        setIsFollowing(true);
+        window.dispatchEvent(new CustomEvent(FOLLOW_BACK_EVENT, { detail: { userId: id, status: "following" } }));
+        setStats((current) => ({ ...current, followers: current.followers + 1 }));
+        setStatus("Follow request accepted.");
+        return;
+      }
+
       const nextMethod = isFollowing || followRequestStatus === "PENDING" ? "DELETE" : "POST";
       const data = await apiFetch<{ following: boolean; requested?: boolean }>(`/api/users/${id}/follow`, { method: nextMethod });
       const wasFollowing = isFollowing;
+      const wasFollowBack = !wasFollowing && isFollowedByViewedUser;
       setIsFollowing(data.following);
       setFollowRequestStatus(data.requested ? "PENDING" : null);
+      if (wasFollowBack && nextMethod === "POST") {
+        window.dispatchEvent(
+          new CustomEvent(FOLLOW_BACK_EVENT, {
+            detail: { userId: id, status: data.requested ? "requested" : "following" }
+          })
+        );
+      }
       setStats((current) => ({
         ...current,
         followers: Math.max(0, current.followers + (data.following ? 1 : wasFollowing ? -1 : 0))
@@ -103,9 +159,45 @@ export function PublicProfileClient({ id }: { id: string }) {
     }
   }
 
+  async function openConnectionPanel(panel: Exclude<ConnectionPanel, null>) {
+    if (!canViewPrivate) {
+      setStatus("This account is private.");
+      return;
+    }
+
+    setActiveConnectionPanel(panel);
+    const hasLoaded = panel === "followers" ? followers.length > 0 || stats.followers === 0 : following.length > 0 || stats.following === 0;
+    if (hasLoaded) return;
+
+    setIsLoadingConnections(true);
+    try {
+      const people = await apiFetch<PublicUser[]>(`/api/users/${id}/${panel}?limit=50`);
+      if (panel === "followers") {
+        setFollowers(people);
+      } else {
+        setFollowing(people);
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not load this list.");
+    } finally {
+      setIsLoadingConnections(false);
+    }
+  }
+
   const avatar = user?.avatarUrl || profileIcon.src;
   const hasPendingFollowRequest = followRequestStatus === "PENDING";
-  const followButtonLabel = isFollowing ? "Following" : hasPendingFollowRequest ? "Requested" : user?.isPrivate ? "Request" : "Follow";
+  const hasIncomingFollowRequest = incomingFollowRequest?.status === "PENDING";
+  const followButtonLabel = isFollowing
+    ? "Following"
+    : hasIncomingFollowRequest
+      ? "Accept"
+      : hasPendingFollowRequest
+        ? "Requested"
+        : isFollowedByViewedUser
+          ? "Follow Back"
+          : user?.isPrivate
+            ? "Request"
+            : "Follow";
 
   return (
     <section
@@ -119,7 +211,7 @@ export function PublicProfileClient({ id }: { id: string }) {
     >
       <div className="mx-auto max-w-[430px]">
         <header className="mb-5 flex items-center justify-between">
-          <Link href="/discover" className="grid h-11 w-11 place-items-center rounded-full bg-white/85 text-paw-cocoa shadow-soft" aria-label="Go back">
+          <Link href="/home" className="grid h-11 w-11 place-items-center rounded-full bg-white/85 text-paw-cocoa shadow-soft" aria-label="Go to Home">
             <ArrowLeft size={22} />
           </Link>
           <h1 className="text-lg font-black text-paw-ink">Profile</h1>
@@ -151,18 +243,22 @@ export function PublicProfileClient({ id }: { id: string }) {
           {user?.bio ? <p className="mx-auto mt-4 max-w-[310px] text-sm font-bold leading-relaxed text-paw-cocoa">{user.bio}</p> : null}
 
           <div className="mt-5 grid grid-cols-3 rounded-[22px] bg-[#fff8ef] py-3">
-            <div className="border-r border-paw-cocoa/10">
+            <button
+              type="button"
+              onClick={() => document.getElementById("profile-posts")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="border-r border-paw-cocoa/10"
+            >
               <p className="text-lg font-black text-paw-ink">{stats.posts}</p>
               <p className="text-xs font-bold text-paw-cocoa/70">Posts</p>
-            </div>
-            <div className="border-r border-paw-cocoa/10">
+            </button>
+            <button type="button" onClick={() => void openConnectionPanel("followers")} className="border-r border-paw-cocoa/10">
               <p className="text-lg font-black text-paw-ink">{stats.followers}</p>
               <p className="text-xs font-bold text-paw-cocoa/70">Followers</p>
-            </div>
-            <div>
+            </button>
+            <button type="button" onClick={() => void openConnectionPanel("following")}>
               <p className="text-lg font-black text-paw-ink">{stats.following}</p>
               <p className="text-xs font-bold text-paw-cocoa/70">Following</p>
-            </div>
+            </button>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
@@ -198,7 +294,7 @@ export function PublicProfileClient({ id }: { id: string }) {
           </section>
         ) : null}
 
-        {canViewPrivate ? <section className="mt-4 rounded-[26px] bg-white/84 p-4 shadow-soft">
+        {canViewPrivate ? <section id="profile-posts" className="mt-4 rounded-[26px] bg-white/84 p-4 shadow-soft">
           <h3 className="mb-3 flex items-center gap-2 text-lg font-black text-paw-ink">
             <PawPrint className="h-5 w-5 fill-paw-pink/30 text-paw-pink" />
             Cats
@@ -242,6 +338,50 @@ export function PublicProfileClient({ id }: { id: string }) {
           )}
         </section> : null}
       </div>
+      {activeConnectionPanel ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-paw-ink/25 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[350px] rounded-[28px] border border-paw-peach/70 bg-[#fff8ef] p-5 shadow-paw">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-lg font-black text-paw-ink">
+                <Users className="h-5 w-5 text-paw-pink" />
+                {activeConnectionPanel === "followers" ? "Followers" : "Following"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveConnectionPanel(null)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-white text-paw-cocoa shadow-soft"
+                aria-label="Close list"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {isLoadingConnections ? (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">Loading...</p>
+            ) : (activeConnectionPanel === "followers" ? followers : following).length ? (
+              <div className="max-h-[330px] space-y-3 overflow-y-auto pr-1">
+                {(activeConnectionPanel === "followers" ? followers : following).map((person) => (
+                  <Link
+                    key={person.id}
+                    href={`/users/${person.id}`}
+                    onClick={() => setActiveConnectionPanel(null)}
+                    className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 shadow-[0_8px_18px_rgba(122,81,63,0.06)]"
+                  >
+                    <img src={person.avatarUrl || profileIcon.src} alt={person.username} className="h-12 w-12 rounded-full object-cover" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-paw-ink">{person.name}</span>
+                      <span className="block truncate text-xs font-bold text-paw-cocoa/70">@{person.username}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">
+                {activeConnectionPanel === "followers" ? "No followers yet." : "Not following anyone yet."}
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
       <BottomNav />
     </section>
   );

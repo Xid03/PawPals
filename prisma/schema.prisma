@@ -73,6 +73,7 @@ enum NotificationType {
   POST_COMMENT
   EVENT_REMINDER
   FOLLOW_REQUEST
+  NEW_FOLLOWER
 }
 
 enum FollowRequestStatus {

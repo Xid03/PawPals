@@ -8,8 +8,8 @@ import { Bookmark, Camera, ChevronLeft, ChevronRight, Heart, ImageIcon, ImagePlu
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import type { DisplayPost } from "@/components/PostCard";
-import { apiFetch, requireSignedIn } from "@/lib/api-client";
-import { posts as mockPosts, stories as mockStories } from "@/data/mockData";
+import { apiFetch, requireSignedIn, type PublicUser } from "@/lib/api-client";
+import { posts as mockPosts } from "@/data/mockData";
 
 type ApiStory = {
   id: string;
@@ -41,20 +41,6 @@ type StoryItem = {
   isApiStory: boolean;
 };
 
-function initialStories(): StoryItem[] {
-  return mockStories.map((story, index) => ({
-    id: story.id,
-    ownerKey: `mock:${story.name}`,
-    name: story.name,
-    image: story.image,
-    avatar: story.image,
-    caption: index === 0 ? "Sunny window watch and snack dreams." : "A little daily cat moment.",
-    likes: 12 + index * 3,
-    views: 40 + index * 9,
-    isApiStory: false
-  }));
-}
-
 function mapApiStory(story: ApiStory): StoryItem {
   return {
     id: story.id,
@@ -73,7 +59,9 @@ export default function StoriesPage() {
   const router = useRouter();
   const storyTouchStart = useRef<{ x: number; y: number } | null>(null);
   const [status, setStatus] = useState("");
-  const [storyItems, setStoryItems] = useState<StoryItem[]>(() => initialStories());
+  const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
+  const [ownStoryItems, setOwnStoryItems] = useState<StoryItem[]>([]);
+  const [storyItems, setStoryItems] = useState<StoryItem[]>([]);
   const [visibleStoryCount, setVisibleStoryCount] = useState(4);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [likedStories, setLikedStories] = useState<Set<string>>(() => new Set());
@@ -89,40 +77,52 @@ export default function StoriesPage() {
   const [commentPost, setCommentPost] = useState<DisplayPost | null>(null);
   const [commentText, setCommentText] = useState("");
   const [optionsPost, setOptionsPost] = useState<DisplayPost | null>(null);
-  const [showOwnStoryNotice, setShowOwnStoryNotice] = useState(false);
   const [storySlideDirection, setStorySlideDirection] = useState<1 | -1>(1);
 
   useEffect(() => {
     async function loadStories() {
       let userId: string | null = null;
-
       try {
-        const auth = await apiFetch<{ user: { id: string } }>("/api/auth/me");
+        const auth = await apiFetch<{ user: PublicUser }>("/api/auth/me");
         userId = auth.user.id;
+        setCurrentUser(auth.user);
       } catch {
         userId = null;
+        setCurrentUser(null);
       }
 
       try {
-        const items = await apiFetch<ApiStory[]>("/api/stories?limit=12");
-        const publicStories = userId ? items.filter((story) => story.author?.id !== userId) : items;
-        if (publicStories.length) setStoryItems([...publicStories.map(mapApiStory), ...initialStories()]);
+        const items = await apiFetch<ApiStory[]>("/api/stories?limit=30");
+        const mappedStories = items.map(mapApiStory);
+        setOwnStoryItems(userId ? mappedStories.filter((story) => story.ownerKey === userId) : []);
+        setStoryItems(userId ? mappedStories.filter((story) => story.ownerKey !== userId) : mappedStories);
       } catch {
-        // Mock stories are already loaded.
+        setOwnStoryItems([]);
+        setStoryItems([]);
       }
     }
 
     void loadStories();
   }, []);
 
+  const storyOwners = useMemo(() => {
+    const owners = new Map<string, StoryItem>();
+    storyItems.forEach((story) => {
+      if (!owners.has(story.ownerKey)) {
+        owners.set(story.ownerKey, story);
+      }
+    });
+    return Array.from(owners.values());
+  }, [storyItems]);
   const visibleStories = useMemo(
-    () => storyItems.slice(0, Math.min(visibleStoryCount, storyItems.length)),
-    [storyItems, visibleStoryCount]
+    () => storyOwners.slice(0, Math.min(visibleStoryCount, storyOwners.length)),
+    [storyOwners, visibleStoryCount]
   );
-  const activeStory = activeStoryIndex === null ? null : storyItems[activeStoryIndex];
+  const allStoryItems = useMemo(() => [...ownStoryItems, ...storyItems], [ownStoryItems, storyItems]);
+  const activeStory = activeStoryIndex === null ? null : allStoryItems[activeStoryIndex];
   const activeStoryGroup = useMemo(
-    () => (activeStory ? storyItems.filter((story) => story.ownerKey === activeStory.ownerKey) : []),
-    [activeStory, storyItems]
+    () => (activeStory ? allStoryItems.filter((story) => story.ownerKey === activeStory.ownerKey) : []),
+    [activeStory, allStoryItems]
   );
   const activeStoryGroupIndex = activeStory
     ? activeStoryGroup.findIndex((story) => story.id === activeStory.id)
@@ -168,7 +168,7 @@ export default function StoriesPage() {
         method: "POST",
         body: uploadForm
       });
-      await apiFetch<{ story: ApiStory }>("/api/stories", {
+      const created = await apiFetch<{ story: ApiStory }>("/api/stories", {
         method: "POST",
         body: JSON.stringify({
           url: upload.url,
@@ -176,9 +176,18 @@ export default function StoriesPage() {
           caption: storyCaption.trim() || undefined
         })
       });
+      const createdStory = mapApiStory(created.story);
+      if (created.story.author) {
+        setCurrentUser((existing) => existing ?? created.story.author ?? null);
+      }
+      if ((currentUser?.id && createdStory.ownerKey === currentUser.id) || created.story.author?.id === createdStory.ownerKey) {
+        setOwnStoryItems((current) => [createdStory, ...current.filter((story) => story.id !== createdStory.id)]);
+      } else {
+        setStoryItems((current) => [createdStory, ...current.filter((story) => story.id !== createdStory.id)]);
+      }
+      setVisibleStoryCount((current) => Math.max(4, current));
       closeAddStory();
-      setStatus("Story posted. View your own story from Profile.");
-      setShowOwnStoryNotice(true);
+      setStatus("Story posted.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not post story");
     } finally {
@@ -187,14 +196,13 @@ export default function StoriesPage() {
   }
 
   function openStory(storyId: string) {
-    const index = storyItems.findIndex((story) => story.id === storyId);
+    const index = allStoryItems.findIndex((story) => story.id === storyId);
     if (index === -1) return;
 
-    const story = storyItems[index];
+    const story = allStoryItems[index];
     setActiveStoryIndex(index);
-    setStoryItems((current) =>
-      current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item))
-    );
+    setOwnStoryItems((current) => current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item)));
+    setStoryItems((current) => current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item)));
     if (story.isApiStory) {
       void apiFetch(`/api/stories/${story.id}/view`, { method: "POST" }).catch(() => undefined);
     }
@@ -203,13 +211,13 @@ export default function StoriesPage() {
   function moveStory(direction: -1 | 1) {
     setActiveStoryIndex((current) => {
       if (current === null) return current;
-      const currentStory = storyItems[current];
-      const group = storyItems.filter((story) => story.ownerKey === currentStory.ownerKey);
+      const currentStory = allStoryItems[current];
+      const group = allStoryItems.filter((story) => story.ownerKey === currentStory.ownerKey);
       if (group.length <= 1) return current;
 
       const groupIndex = group.findIndex((story) => story.id === currentStory.id);
       const nextStory = group[(groupIndex + direction + group.length) % group.length];
-      const nextIndex = storyItems.findIndex((story) => story.id === nextStory.id);
+      const nextIndex = allStoryItems.findIndex((story) => story.id === nextStory.id);
       return nextIndex === -1 ? current : nextIndex;
     });
   }
@@ -217,13 +225,13 @@ export default function StoriesPage() {
   function moveStoryAccount(direction: -1 | 1) {
     setActiveStoryIndex((current) => {
       if (current === null) return current;
-      const ownerKeys = Array.from(new Set(storyItems.map((story) => story.ownerKey)));
+      const ownerKeys = Array.from(new Set(allStoryItems.map((story) => story.ownerKey)));
       if (ownerKeys.length <= 1) return current;
 
-      const currentOwner = storyItems[current].ownerKey;
+      const currentOwner = allStoryItems[current].ownerKey;
       const ownerIndex = ownerKeys.indexOf(currentOwner);
       const nextOwner = ownerKeys[(ownerIndex + direction + ownerKeys.length) % ownerKeys.length];
-      const nextIndex = storyItems.findIndex((story) => story.ownerKey === nextOwner);
+      const nextIndex = allStoryItems.findIndex((story) => story.ownerKey === nextOwner);
       if (nextIndex !== -1 && nextIndex !== current) setStorySlideDirection(direction);
       return nextIndex === -1 ? current : nextIndex;
     });
@@ -264,6 +272,11 @@ export default function StoriesPage() {
         next.add(story.id);
       }
       setStoryItems((items) =>
+        items.map((item) =>
+          item.id === story.id ? { ...item, likes: Math.max(0, item.likes + (liked ? -1 : 1)) } : item
+        )
+      );
+      setOwnStoryItems((items) =>
         items.map((item) =>
           item.id === story.id ? { ...item, likes: Math.max(0, item.likes + (liked ? -1 : 1)) } : item
         )
@@ -345,35 +358,56 @@ export default function StoriesPage() {
           </Link>
         </header>
 
-        <div className="hide-scrollbar flex gap-3 overflow-x-auto pb-1">
-          <button type="button" className="w-[64px] shrink-0 text-center" onClick={openAddStory}>
-            <span className="mx-auto grid h-[62px] w-[62px] place-items-center rounded-full bg-gradient-to-br from-paw-lavender to-paw-pink p-[4px] shadow-soft ring-[4px] ring-white">
-              <span className="grid h-full w-full place-items-center rounded-full bg-paw-lavender text-white">
-                <Plus size={30} strokeWidth={2.5} />
-              </span>
+        <div className="hide-scrollbar flex items-start gap-3 overflow-x-auto pb-2">
+          <button
+            type="button"
+            className="flex w-[72px] shrink-0 flex-col items-center text-center"
+            onClick={() => (ownStoryItems.length ? openStory(ownStoryItems[0].id) : openAddStory())}
+          >
+            <span className="relative grid h-[64px] w-[64px] place-items-center rounded-full bg-gradient-to-br from-paw-lavender to-paw-pink p-[4px] shadow-soft ring-[4px] ring-white">
+              {ownStoryItems.length ? (
+                <>
+                  <span className="block h-full w-full overflow-hidden rounded-full bg-white">
+                    <img
+                      src={currentUser?.avatarUrl || ownStoryItems[0].avatar}
+                      alt="Your story"
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  </span>
+                  <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
+                    <PawPrint className="h-4 w-4 fill-paw-pink/40" />
+                  </span>
+                </>
+              ) : (
+                <span className="grid h-full w-full place-items-center rounded-full bg-paw-lavender text-white">
+                  <Plus size={30} strokeWidth={2.5} />
+                </span>
+              )}
             </span>
-            <span className="mt-2 block truncate text-center text-xs font-black leading-none text-paw-pink">
-              Add Story
+            <span className="mt-2 block w-full px-0.5 text-center text-[11px] font-black leading-tight text-paw-pink">
+              {ownStoryItems.length ? "Your Story" : "Add Story"}
             </span>
           </button>
           {visibleStories.map((story) => (
-            <button key={story.id} type="button" className="w-[64px] shrink-0 text-center" onClick={() => openStory(story.id)}>
-              <span className="relative mx-auto block h-[62px] w-[62px] rounded-full bg-gradient-to-br from-paw-pink to-paw-lavender p-[3px] shadow-soft ring-[4px] ring-white">
-                <img src={story.image} alt={story.name} className="h-full w-full rounded-full object-cover" />
+            <button key={story.id} type="button" className="flex w-[72px] shrink-0 flex-col items-center text-center" onClick={() => openStory(story.id)}>
+              <span className="relative block h-[64px] w-[64px] rounded-full bg-gradient-to-br from-paw-pink to-paw-lavender p-[3px] shadow-soft ring-[4px] ring-white">
+                <span className="block h-full w-full overflow-hidden rounded-full bg-white">
+                  <img src={story.avatar} alt={story.name} className="h-full w-full rounded-full object-cover" />
+                </span>
                 <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
                   <PawPrint className="h-4 w-4 fill-paw-pink/40" />
                 </span>
               </span>
-              <span className="mt-2 block truncate text-center text-xs font-black leading-none text-paw-cocoa">
+              <span className="mt-2 block w-full truncate px-0.5 text-center text-[11px] font-black leading-tight text-paw-cocoa">
                 {story.name}
               </span>
             </button>
           ))}
-          {visibleStoryCount < storyItems.length ? (
+          {visibleStoryCount < storyOwners.length ? (
             <button
               className="grid h-[62px] w-[62px] shrink-0 place-items-center rounded-full bg-white/80 text-paw-cocoa shadow-soft"
               type="button"
-              onClick={() => setVisibleStoryCount((current) => Math.min(current + 4, storyItems.length))}
+              onClick={() => setVisibleStoryCount((current) => Math.min(current + 4, storyOwners.length))}
               aria-label="Load more stories"
             >
               <MoreHorizontal size={23} />
@@ -381,21 +415,6 @@ export default function StoriesPage() {
           ) : null}
         </div>
       </div>
-
-      {showOwnStoryNotice ? (
-        <div className="mx-5 mb-4 rounded-2xl border border-paw-peach/70 bg-white/70 p-4">
-          <p className="text-sm font-extrabold leading-relaxed text-paw-cocoa">
-            Your story was posted. Own stories are hidden here; view them from your profile.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/profile")}
-            className="mt-3 h-10 rounded-xl bg-paw-pink px-5 text-sm font-extrabold text-white shadow-soft"
-          >
-            Go to Profile
-          </button>
-        </div>
-      ) : null}
 
       <StatusToast message={status} onDismiss={() => setStatus("")} />
       <div className="relative space-y-4 px-4">

@@ -86,6 +86,11 @@ export async function followUser(followerId: string, followingId: string) {
   }
 
   if (target.isPrivate) {
+    const requester = await prisma.user.findUnique({
+      where: { id: followerId },
+      select: { username: true, name: true }
+    });
+    const requesterLabel = requester?.username ? `@${requester.username}` : requester?.name ?? "Someone";
     const request = await prisma.followRequest.upsert({
       where: { requesterId_targetId: { requesterId: followerId, targetId: followingId } },
       create: { requesterId: followerId, targetId: followingId },
@@ -97,8 +102,13 @@ export async function followUser(followerId: string, followingId: string) {
         userId: followingId,
         type: "FOLLOW_REQUEST",
         title: "New follow request",
-        body: "Someone requested to follow your private account.",
-        data: { followRequestId: request.id, requesterId: followerId }
+        body: `${requesterLabel} requested to follow your private account.`,
+        data: {
+          followRequestId: request.id,
+          requesterId: followerId,
+          requesterUsername: requester?.username ?? null,
+          requesterName: requester?.name ?? null
+        }
       }
     });
 
@@ -110,8 +120,31 @@ export async function followUser(followerId: string, followingId: string) {
     create: { followerId, followingId },
     update: {}
   });
+  await createNewFollowerNotification(followerId, followingId);
 
   return { following: true, requested: false };
+}
+
+async function createNewFollowerNotification(followerId: string, followingId: string) {
+  const follower = await prisma.user.findUnique({
+    where: { id: followerId },
+    select: { id: true, username: true, name: true }
+  });
+  const followerLabel = follower?.username ? `@${follower.username}` : follower?.name ?? "Someone";
+
+  await prisma.notification.create({
+    data: {
+      userId: followingId,
+      type: "NEW_FOLLOWER",
+      title: "New follower",
+      body: `${followerLabel} started following you.`,
+      data: {
+        followerId,
+        followerUsername: follower?.username ?? null,
+        followerName: follower?.name ?? null
+      }
+    }
+  });
 }
 
 export async function unfollowUser(followerId: string, followingId: string) {
@@ -134,12 +167,16 @@ export async function approveFollowRequest(ownerId: string, requestId: string) {
   if (request.targetId !== ownerId) {
     throw new ApiRouteError(403, "FORBIDDEN", "You do not own this follow request");
   }
+  if (request.status === "APPROVED") {
+    return { request, following: true };
+  }
 
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId: request.requesterId, followingId: ownerId } },
     create: { followerId: request.requesterId, followingId: ownerId },
     update: {}
   });
+  await createNewFollowerNotification(request.requesterId, ownerId);
 
   const updated = await prisma.followRequest.update({
     where: { id: requestId },
