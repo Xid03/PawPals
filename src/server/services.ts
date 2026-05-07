@@ -69,18 +69,139 @@ export async function followUser(followerId: string, followingId: string) {
     throw new ApiRouteError(400, "BAD_REQUEST", "You cannot follow yourself");
   }
 
+  const target = await prisma.user.findUnique({
+    where: { id: followingId },
+    select: { id: true, isPrivate: true }
+  });
+  if (!target) {
+    throw new ApiRouteError(404, "NOT_FOUND", "User not found");
+  }
+
+  const existingFollow = await prisma.follow.findUnique({
+    where: { followerId_followingId: { followerId, followingId } },
+    select: { id: true }
+  });
+  if (existingFollow) {
+    return { following: true, requested: false };
+  }
+
+  if (target.isPrivate) {
+    const request = await prisma.followRequest.upsert({
+      where: { requesterId_targetId: { requesterId: followerId, targetId: followingId } },
+      create: { requesterId: followerId, targetId: followingId },
+      update: { status: "PENDING" }
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId: followingId,
+        type: "FOLLOW_REQUEST",
+        title: "New follow request",
+        body: "Someone requested to follow your private account.",
+        data: { followRequestId: request.id, requesterId: followerId }
+      }
+    });
+
+    return { following: false, requested: true };
+  }
+
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId, followingId } },
     create: { followerId, followingId },
     update: {}
   });
 
-  return { following: true };
+  return { following: true, requested: false };
 }
 
 export async function unfollowUser(followerId: string, followingId: string) {
   await prisma.follow.deleteMany({ where: { followerId, followingId } });
-  return { following: false };
+  await prisma.followRequest.deleteMany({
+    where: { requesterId: followerId, targetId: followingId, status: "PENDING" }
+  });
+  return { following: false, requested: false };
+}
+
+export async function approveFollowRequest(ownerId: string, requestId: string) {
+  const request = await prisma.followRequest.findUnique({
+    where: { id: requestId },
+    include: { requester: true }
+  });
+
+  if (!request) {
+    throw new ApiRouteError(404, "NOT_FOUND", "Follow request not found");
+  }
+  if (request.targetId !== ownerId) {
+    throw new ApiRouteError(403, "FORBIDDEN", "You do not own this follow request");
+  }
+
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: request.requesterId, followingId: ownerId } },
+    create: { followerId: request.requesterId, followingId: ownerId },
+    update: {}
+  });
+
+  const updated = await prisma.followRequest.update({
+    where: { id: requestId },
+    data: { status: "APPROVED" },
+    include: { requester: true }
+  });
+
+  return { request: updated, following: true };
+}
+
+export async function rejectFollowRequest(ownerId: string, requestId: string) {
+  const request = await prisma.followRequest.findUnique({ where: { id: requestId } });
+  if (!request) {
+    throw new ApiRouteError(404, "NOT_FOUND", "Follow request not found");
+  }
+  if (request.targetId !== ownerId) {
+    throw new ApiRouteError(403, "FORBIDDEN", "You do not own this follow request");
+  }
+
+  const updated = await prisma.followRequest.update({
+    where: { id: requestId },
+    data: { status: "REJECTED" },
+    include: { requester: true }
+  });
+
+  return { request: updated, following: false };
+}
+
+export function canViewPrivateContent(viewerId: string | null | undefined, owner: { id: string; isPrivate?: boolean | null }) {
+  return owner.id === viewerId || !owner.isPrivate;
+}
+
+export async function canViewUserPrivateContent(viewerId: string | null | undefined, owner: { id: string; isPrivate?: boolean | null }) {
+  if (canViewPrivateContent(viewerId, owner)) {
+    return true;
+  }
+  if (!viewerId) {
+    return false;
+  }
+
+  const follow = await prisma.follow.findUnique({
+    where: { followerId_followingId: { followerId: viewerId, followingId: owner.id } },
+    select: { id: true }
+  });
+
+  return Boolean(follow);
+}
+
+export async function ensureCanViewUserPrivateContent(viewerId: string | null | undefined, userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, isPrivate: true }
+  });
+
+  if (!user) {
+    throw new ApiRouteError(404, "NOT_FOUND", "User not found");
+  }
+  if (!(await canViewUserPrivateContent(viewerId, user))) {
+    throw new ApiRouteError(403, "PRIVATE_ACCOUNT", "This account is private");
+  }
+
+  return user;
 }
 
 export async function ensureCatOwner(catId: string, ownerId: string) {
@@ -206,7 +327,25 @@ export async function ensurePostOwner(postId: string, userId: string) {
   return post;
 }
 
+export async function ensurePostVisible(postId: string, viewerId: string | null | undefined) {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, author: { select: { id: true, isPrivate: true } } }
+  });
+
+  if (!post) {
+    throw new ApiRouteError(404, "NOT_FOUND", "Post not found");
+  }
+  if (!(await canViewUserPrivateContent(viewerId, post.author))) {
+    throw new ApiRouteError(403, "PRIVATE_ACCOUNT", "This post belongs to a private account");
+  }
+
+  return post;
+}
+
 export async function togglePostLike(postId: string, userId: string) {
+  await ensurePostVisible(postId, userId);
+
   const existing = await prisma.like.findUnique({
     where: { postId_userId: { postId, userId } }
   });
@@ -234,6 +373,8 @@ export async function togglePostLike(postId: string, userId: string) {
 }
 
 export async function toggleSavedPost(postId: string, userId: string) {
+  await ensurePostVisible(postId, userId);
+
   const existing = await prisma.savedPost.findUnique({
     where: { postId_userId: { postId, userId } }
   });
@@ -248,6 +389,8 @@ export async function toggleSavedPost(postId: string, userId: string) {
 }
 
 export async function addComment(postId: string, authorId: string, text: string) {
+  await ensurePostVisible(postId, authorId);
+
   const comment = await prisma.comment.create({
     data: { postId, authorId, text },
     include: { author: true }
@@ -284,6 +427,17 @@ export async function ensureConversationParticipant(conversationId: string, user
 export async function getOrCreateConversation(userId: string, otherUserId: string) {
   if (userId === otherUserId) {
     throw new ApiRouteError(400, "BAD_REQUEST", "Cannot create a conversation with yourself");
+  }
+
+  const otherUser = await prisma.user.findUnique({
+    where: { id: otherUserId },
+    select: { id: true, isPrivate: true }
+  });
+  if (!otherUser) {
+    throw new ApiRouteError(404, "NOT_FOUND", "User not found");
+  }
+  if (!(await canViewUserPrivateContent(userId, otherUser))) {
+    throw new ApiRouteError(403, "PRIVATE_ACCOUNT", "This account is private and cannot receive messages");
   }
 
   const existing = await prisma.conversation.findFirst({

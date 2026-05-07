@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Home, MessageCircle, PawPrint, Search, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { apiFetch, isGuestMode } from "@/lib/api-client";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import profileIcon from "../../images/profileIcon.png";
 
 const tabs = [
@@ -17,7 +18,8 @@ const tabs = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const [profileAvatar, setProfileAvatar] = useState(profileIcon.src);
+  const { currentUser } = useCurrentUser();
+  const [profileAvatar, setProfileAvatar] = useState(currentUser?.avatarUrl || profileIcon.src);
 
   useEffect(() => {
     if (isGuestMode()) {
@@ -29,6 +31,10 @@ export function BottomNav() {
       .then(({ user }) => setProfileAvatar(user.avatarUrl || profileIcon.src))
       .catch(() => setProfileAvatar(profileIcon.src));
   }, []);
+
+  useEffect(() => {
+    setProfileAvatar(currentUser?.avatarUrl || profileIcon.src);
+  }, [currentUser?.avatarUrl]);
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-50 h-[70px] w-full max-w-[430px] -translate-x-1/2 rounded-t-[24px] border border-paw-cocoa/10 bg-[#FFF8ED]/95 px-[14px] pb-[7px] pt-[8px] shadow-[0_-10px_24px_rgba(122,81,63,0.12)] backdrop-blur-xl md:bottom-6 md:rounded-[24px]">

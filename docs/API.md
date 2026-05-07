@@ -38,13 +38,15 @@ Pagination query params: `page`, `limit`, and optionally `cursor`.
 
 ## Users
 
-- `PATCH /users/me` - update owner profile
+- `PATCH /users/me` - update owner profile, including `isPrivate`
 - `POST /users/me/avatar` - multipart form field `file`
 - `GET /users/:id`
 - `POST /users/:id/follow`
 - `DELETE /users/:id/follow`
 - `GET /users/:id/followers`
 - `GET /users/:id/following`
+
+Private accounts hide posts, followers, following, and chat access from other users.
 
 ## Cat Profiles
 
@@ -111,14 +113,11 @@ Use `topic: "MEMES"` on posts to create meme posts.
 
 Message schema is prepared for future `IMAGE` and `STICKER` types.
 
-## Vet Directory And Booking
+## Vet Directory
 
 - `GET /vets?q=&city=&open=true&minRating=4&service=CHECKUP`
 - `GET /vets/:id`
 - `POST /vets/:id/favorite`
-- `GET /appointments`
-- `POST /appointments` - `{ vetId, catId, startsAt, reason }`
-- `DELETE /appointments/:id` - marks appointment cancelled
 
 ## Events
 
@@ -144,7 +143,7 @@ Message schema is prepared for future `IMAGE` and `STICKER` types.
 - `POST /notifications`
 - `POST /notifications/:id/read`
 
-Notifications are also created automatically for matches, messages, post likes/comments, and appointment requests.
+Notifications are also created automatically for matches, messages, and post likes/comments.
 
 ## Uploads
 

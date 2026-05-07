@@ -23,7 +23,22 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { updatedAt: "desc" }
     });
-    return paginated(conversations, page);
+    const conversationsWithUnreadCounts = await Promise.all(
+      conversations.map(async (conversation) => {
+        const participant = conversation.participants.find((item) => item.userId === auth.id);
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: { not: auth.id },
+            ...(participant?.lastReadAt ? { createdAt: { gt: participant.lastReadAt } } : {})
+          }
+        });
+
+        return { ...conversation, unreadCount };
+      })
+    );
+
+    return paginated(conversationsWithUnreadCounts, page);
   } catch (error) {
     return handleRouteError(error);
   }

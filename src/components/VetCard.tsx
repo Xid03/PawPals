@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, MapPin, Phone, Star } from "lucide-react";
+import { MapPin, Phone, Star } from "lucide-react";
+import { vetPlaceholderImage } from "@/lib/vet-images";
 
 export type DisplayVet = {
   id: string;
@@ -16,40 +17,23 @@ export type DisplayVet = {
   phone?: string;
 };
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
-
 export function VetCard({ vet }: { vet: DisplayVet }) {
   const [imageFailed, setImageFailed] = useState(!vet.image);
-  const isGoogleLogo = vet.image.includes("google.com/s2/favicons");
-  const showImage = vet.image && !imageFailed;
+  const fallbackImage = vetPlaceholderImage({ id: vet.id, name: vet.name, city: vet.distance });
+  const image = imageFailed ? fallbackImage : vet.image || fallbackImage;
+  const isGoogleLogo = image.includes("google.com/s2/favicons");
 
   return (
     <article className="relative rounded-[24px] bg-white p-3.5 shadow-[0_12px_30px_rgba(137,91,77,0.065)]">
       <Link href={`/vets/${vet.id}`} className="flex min-w-0 gap-3 pr-10">
-        {showImage ? (
-          <img
-            src={vet.image}
-            alt={vet.name}
-            onError={() => setImageFailed(true)}
-            className={`h-20 w-20 shrink-0 rounded-[18px] ${
-              isGoogleLogo ? "bg-white p-4 object-contain shadow-[inset_0_0_0_1px_rgba(122,81,63,0.04)]" : "object-cover"
-            }`}
-          />
-        ) : (
-          <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[18px] bg-gradient-to-br from-paw-lilac to-paw-blush text-paw-lavender shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]">
-            <div className="text-center">
-              <Building2 className="mx-auto mb-1" size={24} strokeWidth={2.4} />
-              <span className="text-lg font-black">{initials(vet.name)}</span>
-            </div>
-          </div>
-        )}
+        <img
+          src={image}
+          alt={vet.name}
+          onError={() => setImageFailed(true)}
+          className={`h-20 w-20 shrink-0 rounded-[18px] ${
+            isGoogleLogo ? "bg-white p-4 object-contain shadow-[inset_0_0_0_1px_rgba(122,81,63,0.04)]" : "object-cover"
+          }`}
+        />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-black leading-tight text-[#2f272a]">{vet.name}</h3>
           <p className="mt-1.5 flex items-center gap-1 text-xs font-bold text-[#9a837d]">

@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Camera, ChevronRight, CirclePlus, Heart, Home, Image as ImageIcon, PawPrint, Search, SlidersHorizontal, Smile, Sparkles, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bell, Camera, ChevronRight, CirclePlus, Heart, Home, Image as ImageIcon, PawPrint, Search, SlidersHorizontal, Smile, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
+import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, getToken, isGuestMode, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
-import { cats, chatMessages } from "@/data/mockData";
+import { cats } from "@/data/mockData";
 import bgChat from "../../images/bgChat.png";
 import homepageImage from "../../images/homepage.png";
 import loginIcon from "../../images/loginIcon.png";
@@ -16,6 +18,7 @@ type DisplayMessage = {
   from: "me" | "them";
   text: string;
   time: string;
+  date?: string;
   imageUrl?: string;
 };
 
@@ -26,62 +29,20 @@ type ChatThread = {
   avatar: string;
   lastMessage: string;
   time: string;
-  source: "api" | "preview";
+  unreadCount: number;
+  isOnline: boolean;
+  source: "api";
   conversation?: ApiConversation;
 };
 
-function currentTimeLabel() {
-  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+type ConversationFilter = "all" | "unread" | "online" | "media";
 
-const lunaPreviewMessages: DisplayMessage[] = chatMessages.map((message) => ({
-  ...message,
-  from: message.from === "me" ? "me" : "them"
-}));
-
-const previewThreads: ChatThread[] = [
-  {
-    id: "preview-luna",
-    name: "Luna's Mom",
-    subtitle: "Cat playdate friend",
-    avatar: cats[0].image,
-    lastMessage: "Yes! That would be purrfect.",
-    time: "10:35 AM",
-    source: "preview"
-  },
-  {
-    id: "preview-milo",
-    name: "Milo's Dad",
-    subtitle: "British Shorthair owner",
-    avatar: cats[1].image,
-    lastMessage: "Milo would love a weekend meetup.",
-    time: "Yesterday",
-    source: "preview"
-  },
-  {
-    id: "preview-simba",
-    name: "Simba's Family",
-    subtitle: "Nearby PawPal",
-    avatar: cats[2].image,
-    lastMessage: "Image attachment",
-    time: "Mon",
-    source: "preview"
-  }
+const conversationFilters: { label: string; value: ConversationFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Unread", value: "unread" },
+  { label: "Online", value: "online" },
+  { label: "Media", value: "media" }
 ];
-
-const previewMessagesByThread: Record<string, DisplayMessage[]> = {
-  "preview-luna": lunaPreviewMessages,
-  "preview-milo": [
-    { id: "milo-1", from: "them", text: "Hi! Milo keeps watching your cat profile.", time: "4:18 PM" },
-    { id: "milo-2", from: "me", text: "That is adorable. Luna likes calm cats.", time: "4:20 PM" },
-    { id: "milo-3", from: "them", text: "Milo would love a weekend meetup.", time: "4:24 PM" }
-  ],
-  "preview-simba": [
-    { id: "simba-1", from: "them", text: "Simba found his favorite sunny spot today.", time: "8:10 AM" },
-    { id: "simba-2", from: "them", text: "Simba photo", time: "8:11 AM", imageUrl: cats[2].image },
-    { id: "simba-3", from: "me", text: "He looks so happy there.", time: "8:13 AM" }
-  ]
-};
 
 function decodeCurrentUserId() {
   const token = getToken();
@@ -100,7 +61,39 @@ function decodeCurrentUserId() {
 
 function formatMessageTime(createdAt?: string) {
   if (!createdAt) return "";
-  return new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  })
+    .format(new Date(createdAt))
+    .replace(/\s/g, " ")
+    .toUpperCase();
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatMessageDateLabel(createdAt?: string) {
+  if (!createdAt) return "Today";
+
+  const messageDate = new Date(createdAt);
+  if (Number.isNaN(messageDate.getTime())) return "Today";
+
+  const today = startOfDay(new Date());
+  const messageDay = startOfDay(messageDate);
+  const daysAgo = Math.round((today.getTime() - messageDay.getTime()) / 86_400_000);
+
+  if (daysAgo === 0) return "Today";
+  if (daysAgo === 1) return "Yesterday";
+
+  const sameYear = messageDate.getFullYear() === today.getFullYear();
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" })
+  }).format(messageDate);
 }
 
 function fallbackAvatar(user?: PublicUser) {
@@ -109,41 +102,55 @@ function fallbackAvatar(user?: PublicUser) {
 
 function threadTone(index: number) {
   const tones = [
-    { paw: "text-paw-pink", pill: "bg-paw-blush text-paw-cocoa", dot: "bg-[#50d66e]", unread: "2", Icon: PawPrint },
-    { paw: "text-[#93a4ff]", pill: "bg-[#efe8ff] text-paw-cocoa", dot: "bg-[#50d66e]", unread: "", Icon: Home },
-    { paw: "text-[#ff873f]", pill: "bg-[#ffefe4] text-paw-cocoa", dot: "bg-[#ffc114]", unread: "", Icon: ImageIcon }
+    { paw: "text-paw-pink", pill: "bg-paw-blush text-paw-cocoa", Icon: PawPrint },
+    { paw: "text-[#93a4ff]", pill: "bg-[#efe8ff] text-paw-cocoa", Icon: Home },
+    { paw: "text-[#ff873f]", pill: "bg-[#ffefe4] text-paw-cocoa", Icon: ImageIcon }
   ];
   return tones[index % tones.length];
 }
 
-export function ChatClient() {
+export function ChatClient({
+  initialGuestLocked = null,
+  initialConversations = [],
+  initialCurrentUserId = null
+}: {
+  initialGuestLocked?: boolean | null;
+  initialConversations?: ApiConversation[];
+  initialCurrentUserId?: string | null;
+}) {
   const router = useRouter();
+  const { currentUser } = useCurrentUser();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [guestLocked, setGuestLocked] = useState<boolean | null>(null);
-  const [conversations, setConversations] = useState<ApiConversation[]>([]);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const [guestLocked, setGuestLocked] = useState<boolean | null>(initialGuestLocked);
+  const [conversations, setConversations] = useState<ApiConversation[]>(initialConversations);
   const [selectedThread, setSelectedThread] = useState<ChatThread | null>(null);
   const [conversation, setConversation] = useState<ApiConversation | null>(null);
   const [messages, setMessages] = useState<ApiMessage[]>([]);
-  const [localMessagesByThread, setLocalMessagesByThread] = useState<Record<string, DisplayMessage[]>>(previewMessagesByThread);
   const [body, setBody] = useState("");
   const [status, setStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversationFilter, setConversationFilter] = useState<ConversationFilter>("all");
+  const [showConversationFilters, setShowConversationFilters] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [menuThread, setMenuThread] = useState<ChatThread | null>(null);
+  const [isDeletingThread, setIsDeletingThread] = useState(false);
+  const currentUserId = initialCurrentUserId ?? currentUser?.id ?? decodeCurrentUserId();
 
   useEffect(() => {
-    const locked = isGuestMode();
+    const locked = initialGuestLocked === true && !getToken() ? true : isGuestMode();
     setGuestLocked(locked);
     if (locked) return;
 
     apiFetch<ApiConversation[]>("/api/conversations?limit=20")
       .then((items) => setConversations(items))
       .catch(() => setStatus(""));
-  }, []);
+  }, [initialGuestLocked]);
 
   const threads = useMemo(() => {
-    const currentUserId = decodeCurrentUserId();
     const apiThreads = conversations.map((item) => {
       const otherParticipant =
         item.participants.find((participant) => participant.user.id !== currentUserId)?.user ?? item.participants[0]?.user;
@@ -155,65 +162,67 @@ export function ChatClient() {
         avatar: fallbackAvatar(otherParticipant),
         lastMessage: latestMessage?.type === "IMAGE" ? "Image attachment" : latestMessage?.body ?? "Start chatting",
         time: latestMessage ? formatMessageTime(latestMessage.createdAt) : "",
+        unreadCount: item.unreadCount ?? 0,
+        isOnline: otherParticipant?.isOnline === true,
         source: "api" as const,
         conversation: item
       };
     });
 
-    return apiThreads.length ? apiThreads : previewThreads;
-  }, [conversations]);
+    return apiThreads;
+  }, [conversations, currentUserId]);
 
   const visibleThreads = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return threads;
-    return threads.filter((thread) =>
-      [thread.name, thread.subtitle, thread.lastMessage].some((value) => value.toLowerCase().includes(query))
-    );
-  }, [searchQuery, threads]);
+    return threads.filter((thread) => {
+      const matchesSearch =
+        !query ||
+        [thread.name, thread.subtitle, thread.lastMessage].some((value) => value.toLowerCase().includes(query));
+      const matchesFilter =
+        conversationFilter === "all" ||
+        (conversationFilter === "unread" && thread.unreadCount > 0) ||
+        (conversationFilter === "online" && thread.isOnline) ||
+        (conversationFilter === "media" && thread.lastMessage.toLowerCase().includes("image"));
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [conversationFilter, searchQuery, threads]);
 
   const displayMessages = useMemo(() => {
     if (!selectedThread) return [];
 
-    if (selectedThread.source === "api") {
-      const currentUserId = decodeCurrentUserId();
-      return messages.map((message) => ({
-        id: message.id,
-        from: message.senderId === currentUserId ? "me" : "them",
-        text: message.body,
-        time: new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        imageUrl: message.type === "IMAGE" ? message.body : undefined
-      }));
-    }
-
-    return localMessagesByThread[selectedThread.id] ?? [];
-  }, [localMessagesByThread, messages, selectedThread]);
-
-  function addPreviewMessage(text: string, imageUrl?: string) {
-    if (!selectedThread) return;
-    const message: DisplayMessage = {
-      id: `local-${Date.now()}`,
-      from: "me",
-      text,
-      time: currentTimeLabel(),
-      imageUrl
-    };
-    setLocalMessagesByThread((current) => ({
-      ...current,
-      [selectedThread.id]: [...(current[selectedThread.id] ?? []), message]
+    return messages.map((message) => ({
+      id: message.id,
+      from: message.senderId === currentUserId ? "me" : "them",
+      text: message.body,
+      time: formatMessageTime(message.createdAt),
+      date: message.createdAt,
+      imageUrl: message.type === "IMAGE" ? message.body : undefined
     }));
-  }
+  }, [currentUserId, messages, selectedThread]);
+
+  const messageDateLabel = useMemo(() => {
+    const latestMessage = displayMessages[displayMessages.length - 1];
+    return formatMessageDateLabel(latestMessage?.date);
+  }, [displayMessages]);
 
   async function openThread(thread: ChatThread) {
+    setMenuThread(null);
     setSelectedThread(thread);
     setShowAttachments(false);
     setStatus("");
     setBody("");
 
-    if (thread.source === "api" && thread.conversation) {
+    if (thread.conversation) {
       setConversation(thread.conversation);
+      setConversations((current) =>
+        current.map((item) => (item.id === thread.conversation?.id ? { ...item, unreadCount: 0 } : item))
+      );
       try {
+        const readPromise = apiFetch(`/api/conversations/${thread.conversation.id}/read`, { method: "POST" }).catch(() => undefined);
         const data = await apiFetch<ApiMessage[]>(`/api/conversations/${thread.conversation.id}/messages`);
         setMessages(data);
+        await readPromise;
       } catch (error) {
         setMessages([]);
         setStatus(error instanceof Error ? error.message : "Could not load messages");
@@ -234,15 +243,53 @@ export function ChatClient() {
     setShowAttachments(false);
   }
 
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function beginThreadPress(thread: ChatThread) {
+    clearLongPressTimer();
+    longPressTriggeredRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setMenuThread(thread);
+      setStatus("");
+    }, 520);
+  }
+
+  function endThreadPress() {
+    clearLongPressTimer();
+  }
+
+  async function deleteThread(thread: ChatThread) {
+    if (isDeletingThread) return;
+    setIsDeletingThread(true);
+    setStatus("");
+    try {
+      if (thread.source === "api") {
+        await apiFetch(`/api/conversations/${thread.id}`, { method: "DELETE" });
+      }
+      setConversations((current) => current.filter((item) => item.id !== thread.id));
+      if (selectedThread?.id === thread.id) closeThread();
+      setMenuThread(null);
+      setStatus("Chat deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete chat");
+    } finally {
+      setIsDeletingThread(false);
+    }
+  }
+
   async function sendMessage() {
     const trimmedBody = body.trim();
     if (!trimmedBody) return;
     try {
       requireSignedIn();
       if (!conversation) {
-        addPreviewMessage(trimmedBody);
-        setBody("");
-        setStatus("Message added to preview");
+        setStatus("Open a real conversation to send messages.");
         return;
       }
       const data = await apiFetch<{ message: ApiMessage }>(`/api/conversations/${conversation.id}/messages`, {
@@ -267,9 +314,7 @@ export function ChatClient() {
       }
 
       if (!conversation) {
-        addPreviewMessage(file.name, URL.createObjectURL(file));
-        setShowAttachments(false);
-        setStatus("Image added to preview");
+        setStatus("Open a real conversation to send images.");
         return;
       }
 
@@ -355,9 +400,11 @@ export function ChatClient() {
                 <p className="truncate text-base font-bold text-paw-cocoa">
                   {selectedThread.subtitle} <PawPrint size={14} className="inline -translate-y-0.5 fill-paw-pink/20 text-paw-pink" />
                 </p>
-                <p className="mt-0.5 text-sm font-bold text-[#46ae63]">
-                  Online <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#46ae63]" />
-                </p>
+                {selectedThread.isOnline ? (
+                  <p className="mt-0.5 text-sm font-bold text-[#46ae63]">
+                    Online <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#46ae63]" />
+                  </p>
+                ) : null}
               </span>
             </div>
 
@@ -395,18 +442,9 @@ export function ChatClient() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            className="relative grid h-[62px] w-[62px] shrink-0 place-items-center rounded-full bg-white/85 text-paw-ink shadow-soft"
-            onClick={openNotifications}
-            aria-label="Open chat notifications"
-          >
-            <span className="absolute right-2 top-2 h-3 w-3 rounded-full bg-paw-pink ring-2 ring-white" />
-            <Bell size={28} strokeWidth={2.4} />
-          </button>
         </header>
       )}
-      {status ? <p className="px-5 pb-3 text-xs font-extrabold text-paw-cocoa/70">{status}</p> : null}
+      <StatusToast message={status} onDismiss={() => setStatus("")} />
       {guestLocked ? (
         <div className="flex flex-1 items-start justify-center pt-2">
           <div className="relative w-full overflow-hidden rounded-[36px] border-2 border-paw-peach/70 bg-[#fff8ee]/95 px-7 pb-8 pt-7 text-center shadow-[0_18px_50px_rgba(122,81,63,0.16)]">
@@ -465,64 +503,135 @@ export function ChatClient() {
         </div>
       ) : !selectedThread ? (
         <div className="relative z-10 flex-1 space-y-5">
-          <label className="flex h-[64px] items-center gap-4 rounded-[26px] bg-white/85 px-5 shadow-soft backdrop-blur">
-            <Search size={29} className="shrink-0 text-paw-pink" />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search conversations..."
-              className="min-w-0 flex-1 bg-transparent text-base font-bold text-paw-ink outline-none placeholder:text-paw-cocoa/55"
-            />
-            <button
-              type="button"
-              onClick={() => setStatus("Conversation filters coming next.")}
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-paw-pink text-white shadow-[0_10px_22px_rgba(247,101,137,0.32)]"
-              aria-label="Filter conversations"
-            >
-              <SlidersHorizontal size={23} />
-            </button>
-          </label>
+          <div className="space-y-3">
+            <label className="flex h-[64px] items-center gap-4 rounded-[26px] bg-white/85 px-5 shadow-soft backdrop-blur">
+              <Search size={29} className="shrink-0 text-paw-pink" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search conversations..."
+                className="min-w-0 flex-1 bg-transparent text-base font-bold text-paw-ink outline-none placeholder:text-paw-cocoa/55"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConversationFilters((current) => !current);
+                  setStatus("");
+                }}
+                className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl shadow-[0_10px_22px_rgba(247,101,137,0.32)] ${
+                  showConversationFilters || conversationFilter !== "all" ? "bg-paw-pink text-white" : "bg-paw-blush text-paw-pink"
+                }`}
+                aria-label="Filter conversations"
+                aria-expanded={showConversationFilters}
+              >
+                <SlidersHorizontal size={23} />
+              </button>
+            </label>
+
+            {showConversationFilters ? (
+              <div className="grid grid-cols-4 gap-2 rounded-[22px] bg-white/80 p-2 shadow-soft backdrop-blur">
+                {conversationFilters.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => {
+                      setConversationFilter(filter.value);
+                      setStatus("");
+                    }}
+                    className={`h-10 rounded-[16px] text-xs font-black transition ${
+                      conversationFilter === filter.value
+                        ? "bg-paw-pink text-white shadow-[0_8px_18px_rgba(247,101,137,0.26)]"
+                        : "bg-paw-blush/70 text-paw-cocoa"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
           <div className="space-y-4">
             {visibleThreads.map((thread, threadIndex) => {
               const tone = threadTone(threadIndex);
               const ToneIcon = tone.Icon;
               return (
-                <button
-                  key={thread.id}
-                  type="button"
-                  className="relative flex min-h-[118px] w-full items-center gap-4 overflow-hidden rounded-[28px] bg-white/86 p-4 text-left shadow-soft transition active:scale-[0.99]"
-                  onClick={() => void openThread(thread)}
-                >
-                  <PawPrint size={52} className="pointer-events-none absolute bottom-4 right-12 fill-paw-peach/20 text-paw-peach/20" />
-                  <span className="relative shrink-0">
-                    <img src={thread.avatar} alt={thread.name} className="h-[76px] w-[76px] rounded-full object-cover ring-4 ring-white" />
-                    <span className={`absolute bottom-0 right-0 h-5 w-5 rounded-full ${tone.dot} ring-4 ring-white`} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="truncate text-[21px] font-black leading-tight text-paw-ink">
-                        {thread.name} <PawPrint size={18} className={`inline -translate-y-0.5 fill-current/20 ${tone.paw}`} />
+                <div key={thread.id} className="relative">
+                  <button
+                    type="button"
+                    className={`relative flex min-h-[118px] w-full touch-manipulation select-none items-center gap-4 overflow-hidden rounded-[28px] bg-white/86 p-4 text-left shadow-soft transition ${
+                      menuThread?.id === thread.id ? "scale-[0.99] ring-2 ring-paw-pink/45" : "active:scale-[0.99]"
+                    }`}
+                    onPointerDown={() => beginThreadPress(thread)}
+                    onPointerUp={endThreadPress}
+                    onPointerLeave={endThreadPress}
+                    onPointerCancel={endThreadPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setMenuThread(thread);
+                    }}
+                    onClick={(event) => {
+                      if (longPressTriggeredRef.current) {
+                        event.preventDefault();
+                        longPressTriggeredRef.current = false;
+                        return;
+                      }
+                      void openThread(thread);
+                    }}
+                  >
+                    <PawPrint size={52} className="pointer-events-none absolute bottom-4 right-12 fill-paw-peach/20 text-paw-peach/20" />
+                    <span className="relative shrink-0">
+                      <img src={thread.avatar} alt={thread.name} className="h-[76px] w-[76px] rounded-full object-cover ring-4 ring-white" />
+                      {thread.isOnline ? (
+                        <span className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-[#50d66e] ring-4 ring-white" />
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="truncate text-[21px] font-black leading-tight text-paw-ink">
+                          {thread.name} <PawPrint size={18} className={`inline -translate-y-0.5 fill-current/20 ${tone.paw}`} />
+                        </span>
+                        <span className={`shrink-0 text-sm font-black ${threadIndex === 0 ? "text-paw-pink" : "text-paw-cocoa/70"}`}>
+                          {thread.time}
+                        </span>
                       </span>
-                      <span className={`shrink-0 text-sm font-black ${threadIndex === 0 ? "text-paw-pink" : "text-paw-cocoa/70"}`}>
-                        {thread.time}
+                      <span className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-xl px-3 py-1 text-xs font-black ${tone.pill}`}>
+                        <ToneIcon size={14} />
+                        <span className="truncate">{thread.subtitle}</span>
+                      </span>
+                      <span className="mt-2 flex items-center gap-2">
+                        <span className="truncate text-base font-bold text-paw-ink">{thread.lastMessage}</span>
+                        {thread.lastMessage.toLowerCase().includes("image") ? <ImageIcon size={20} className="shrink-0 text-paw-pink" /> : null}
                       </span>
                     </span>
-                    <span className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-xl px-3 py-1 text-xs font-black ${tone.pill}`}>
-                      <ToneIcon size={14} />
-                      <span className="truncate">{thread.subtitle}</span>
-                    </span>
-                    <span className="mt-2 flex items-center gap-2">
-                      <span className="truncate text-base font-bold text-paw-ink">{thread.lastMessage}</span>
-                      {thread.lastMessage.toLowerCase().includes("image") ? <ImageIcon size={20} className="shrink-0 text-paw-pink" /> : null}
-                    </span>
-                  </span>
-                  {tone.unread ? (
-                    <span className="absolute right-5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-paw-pink text-sm font-black text-white shadow-soft">
-                      {tone.unread}
-                    </span>
+                    {thread.unreadCount > 0 ? (
+                      <span className="absolute right-5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-paw-pink text-sm font-black text-white shadow-soft">
+                        {thread.unreadCount > 99 ? "99+" : thread.unreadCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  {menuThread?.id === thread.id ? (
+                    <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-2xl border border-paw-rose/35 bg-white/95 p-2 shadow-[0_16px_36px_rgba(122,81,63,0.2)] backdrop-blur">
+                      <button
+                        type="button"
+                        onClick={() => void deleteThread(thread)}
+                        disabled={isDeletingThread}
+                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-paw-pink px-4 text-sm font-black text-white shadow-soft disabled:opacity-70"
+                      >
+                        <Trash2 size={17} />
+                        {isDeletingThread ? "Deleting..." : "Delete Chat"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMenuThread(null)}
+                        className="grid h-11 w-11 place-items-center rounded-xl bg-paw-blush text-paw-cocoa"
+                        aria-label="Cancel delete chat"
+                      >
+                        <X size={19} strokeWidth={3} />
+                      </button>
+                    </div>
                   ) : null}
-                </button>
+                </div>
               );
             })}
             {!visibleThreads.length ? (
@@ -541,7 +650,7 @@ export function ChatClient() {
         <div className="relative z-10 flex-1 space-y-5 pb-24">
           <div className="mx-auto flex w-fit items-center gap-2 rounded-full bg-paw-blush px-6 py-2 text-sm font-bold text-paw-pink shadow-soft">
             <Heart size={13} className="fill-paw-pink/40 text-paw-pink/40" />
-            Today
+            {messageDateLabel}
             <Heart size={13} className="fill-paw-pink/40 text-paw-pink/40" />
           </div>
 

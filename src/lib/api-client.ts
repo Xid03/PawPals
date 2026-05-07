@@ -16,6 +16,8 @@ export type PublicUser = {
   bio?: string | null;
   avatarUrl?: string | null;
   city?: string | null;
+  isOnline?: boolean;
+  isPrivate?: boolean;
 };
 
 export type ApiCat = {
@@ -40,6 +42,7 @@ export type ApiPost = {
   createdAt: string;
   author: PublicUser;
   images?: { url: string }[];
+  savedByMe?: boolean;
   _count?: {
     likes: number;
     comments: number;
@@ -63,7 +66,6 @@ export type ApiVet = {
   services?: { type: string }[];
   _count?: {
     favorites: number;
-    appointments: number;
   };
 };
 
@@ -79,6 +81,7 @@ export type ApiEvent = {
   latitude?: number | null;
   longitude?: number | null;
   distanceKm?: number | null;
+  savedByMe?: boolean;
   _count?: {
     rsvps: number;
     saves: number;
@@ -99,6 +102,7 @@ export type ApiConversation = {
   id: string;
   participants: { user: PublicUser }[];
   messages?: ApiMessage[];
+  unreadCount?: number;
 };
 
 export type ApiMessage = {

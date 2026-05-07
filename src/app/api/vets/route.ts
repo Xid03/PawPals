@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/server/prisma";
 import { getPagination } from "@/server/pagination";
 import { paginated, handleRouteError } from "@/server/responses";
+import { ensureUniqueVetImages } from "@/lib/vet-images";
 import { z } from "zod";
 
 const vetQuerySchema = z.object({
@@ -58,12 +59,12 @@ export async function GET(request: NextRequest) {
     };
     const vets = await prisma.vet.findMany({
       where,
-      include: { services: true, _count: { select: { favorites: true, appointments: true } } },
+      include: { services: true, _count: { select: { favorites: true } } },
       orderBy: [{ rating: "desc" }, { name: "asc" }]
     });
 
     if (query.lat === undefined || query.lng === undefined) {
-      return paginated(vets.slice(page.skip, page.skip + page.take), { ...page, total: vets.length });
+      return paginated(ensureUniqueVetImages(vets).slice(page.skip, page.skip + page.take), { ...page, total: vets.length });
     }
 
     const origin = { latitude: query.lat, longitude: query.lng };
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
 
-    return paginated(sorted.slice(page.skip, page.skip + page.take), { ...page, total: sorted.length });
+    return paginated(ensureUniqueVetImages(sorted).slice(page.skip, page.skip + page.take), { ...page, total: sorted.length });
   } catch (error) {
     return handleRouteError(error);
   }

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { NextRequest } from "next/server";
 import { prisma } from "@/server/prisma";
-import { requireAuth } from "@/server/auth";
+import { getTokenFromRequest, requireAuth, verifyAuthToken } from "@/server/auth";
 import { getPagination } from "@/server/pagination";
 import { ok, paginated, handleRouteError } from "@/server/responses";
 import { parseJson } from "@/server/route-utils";
@@ -13,6 +13,7 @@ const eventQuerySchema = z.object({
   q: z.string().optional(),
   category: z.enum(["NEARBY", "WORKSHOPS", "MEETUPS", "ADOPTION"]).optional(),
   city: z.string().optional(),
+  mode: z.enum(["saved"]).optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),
   lng: z.coerce.number().min(-180).max(180).optional()
 });
@@ -39,7 +40,6 @@ function distanceKm(
 }
 
 const cityCoordinates: Record<string, { latitude: number; longitude: number }> = {
-  "new york": { latitude: 40.7128, longitude: -74.006 },
   "kuala lumpur": { latitude: 3.139, longitude: 101.6869 },
   "petaling jaya": { latitude: 3.1073, longitude: 101.6067 },
   shahalam: { latitude: 3.0733, longitude: 101.5185 },
@@ -61,26 +61,59 @@ function coordinatesForEvent(event: { latitude: number | null; longitude: number
   return city ? cityCoordinates[city] ?? null : null;
 }
 
+async function getOptionalAuthId(request: NextRequest) {
+  const token = getTokenFromRequest(request);
+  if (!token) return null;
+
+  try {
+    const auth = await verifyAuthToken(token);
+    return auth.id;
+  } catch {
+    return null;
+  }
+}
+
+function withSavedByMe<T extends object>(event: T & { saves: { userId: string }[] }) {
+  const { saves, ...rest } = event;
+  return {
+    ...rest,
+    savedByMe: Boolean(saves?.length)
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const page = getPagination(request.nextUrl.searchParams);
     const query = eventQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
+    const authId = query.mode === "saved" ? (await requireAuth(request)).id : await getOptionalAuthId(request);
+    const savedUserId = authId ?? "";
     const events = await prisma.event.findMany({
       where: {
         startsAt: { gte: new Date() },
-        ...(query.q ? { title: { contains: query.q, mode: "insensitive" } } : {}),
+        ...(query.q
+          ? {
+              OR: [
+                { title: { contains: query.q, mode: "insensitive" } },
+                { description: { contains: query.q, mode: "insensitive" } },
+                { location: { contains: query.q, mode: "insensitive" } },
+                { city: { contains: query.q, mode: "insensitive" } }
+              ]
+            }
+          : {}),
         ...(query.category ? { category: query.category } : {}),
-        ...(query.city ? { city: { contains: query.city, mode: "insensitive" } } : {})
+        ...(query.city ? { city: { contains: query.city, mode: "insensitive" } } : {}),
+        ...(query.mode === "saved" ? { saves: { some: { userId: savedUserId } } } : {})
       },
       include: {
         organizer: { select: { id: true, name: true, username: true, avatarUrl: true } },
+        saves: { where: { userId: savedUserId }, select: { userId: true } },
         _count: { select: { rsvps: true, saves: true } }
       },
       orderBy: { startsAt: "asc" }
     });
 
     if (query.lat === undefined || query.lng === undefined) {
-      return paginated(events.slice(page.skip, page.skip + page.take), { ...page, total: events.length });
+      return paginated(events.slice(page.skip, page.skip + page.take).map(withSavedByMe), { ...page, total: events.length });
     }
 
     const origin = { latitude: query.lat, longitude: query.lng };
@@ -96,7 +129,7 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
 
-    return paginated(sorted.slice(page.skip, page.skip + page.take), { ...page, total: sorted.length });
+    return paginated(sorted.slice(page.skip, page.skip + page.take).map(withSavedByMe), { ...page, total: sorted.length });
   } catch (error) {
     return handleRouteError(error);
   }

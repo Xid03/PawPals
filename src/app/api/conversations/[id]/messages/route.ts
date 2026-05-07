@@ -5,10 +5,10 @@ import { prisma } from "@/server/prisma";
 import { requireAuth } from "@/server/auth";
 import { rateLimit } from "@/server/rate-limit";
 import { getPagination } from "@/server/pagination";
-import { ok, paginated, handleRouteError } from "@/server/responses";
+import { ok, paginated, handleRouteError, ApiRouteError } from "@/server/responses";
 import { parseJson } from "@/server/route-utils";
 import { messageSchema } from "@/server/validators";
-import { ensureConversationParticipant } from "@/server/services";
+import { canViewUserPrivateContent, ensureConversationParticipant } from "@/server/services";
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -34,13 +34,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const auth = await requireAuth(request);
     await ensureConversationParticipant(params.id, auth.id);
     const input = await parseJson(request, messageSchema);
+    const recipients = await prisma.conversationParticipant.findMany({
+      where: { conversationId: params.id, userId: { not: auth.id } },
+      include: { user: { select: { id: true, isPrivate: true } } }
+    });
+    const canMessageRecipients = await Promise.all(
+      recipients.map((recipient) => canViewUserPrivateContent(auth.id, recipient.user))
+    );
+    if (canMessageRecipients.some((canMessage) => !canMessage)) {
+      throw new ApiRouteError(403, "PRIVATE_ACCOUNT", "This account is private and cannot receive messages");
+    }
     const message = await prisma.message.create({
       data: { conversationId: params.id, senderId: auth.id, body: input.body, type: input.type }
     });
     await prisma.conversation.update({ where: { id: params.id }, data: { updatedAt: new Date() } });
-    const recipients = await prisma.conversationParticipant.findMany({
-      where: { conversationId: params.id, userId: { not: auth.id } }
-    });
     await prisma.notification.createMany({
       data: recipients.map((recipient) => ({
         userId: recipient.userId,

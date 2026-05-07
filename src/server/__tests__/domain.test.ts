@@ -68,7 +68,7 @@ describe("event RSVP and health tips", () => {
       title: "Cat Cafe",
       category: "MEETUPS",
       startsAt: new Date().toISOString(),
-      location: "Downtown"
+      location: "Ipoh Old Town"
     });
     expect(parsed.category).toBe("MEETUPS");
   });

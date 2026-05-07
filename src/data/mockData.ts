@@ -118,7 +118,7 @@ export const events = [
     id: "cat-cafe",
     title: "Cat Cafe Meet & Greet",
     date: "Sun, May 25 - 11:00 AM",
-    place: "Purrista Cat Cafe, Downtown",
+    place: "Purrista Cat Cafe, Ipoh",
     distance: "1.2 km",
     image:
       "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=500&q=80"
@@ -127,7 +127,7 @@ export const events = [
     id: "adoption-drive",
     title: "Kitten Adoption Drive",
     date: "Sat, May 31 - 2:00 PM",
-    place: "Happy Paws Shelter",
+    place: "Happy Paws Shelter, Petaling Jaya",
     distance: "2.4 km",
     image:
       "https://images.unsplash.com/photo-1592194996308-7b43878e84a6?auto=format&fit=crop&w=500&q=80"
@@ -136,7 +136,7 @@ export const events = [
     id: "care-workshop",
     title: "Cat Care Workshop",
     date: "Sun, Jun 8 - 10:30 AM",
-    place: "PawPals Community Center",
+    place: "PawPals Community Hub, Kuala Lumpur",
     distance: "3.1 km",
     image:
       "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?auto=format&fit=crop&w=500&q=80"
@@ -145,7 +145,7 @@ export const events = [
     id: "adventure-walk",
     title: "Outdoor Adventure Walk",
     date: "Sat, Jun 14 - 7:30 AM",
-    place: "Green Paws Park",
+    place: "Taman Botani Negara, Shah Alam",
     distance: "3.8 km",
     image:
       "https://images.unsplash.com/photo-1501820488136-72669149e0d4?auto=format&fit=crop&w=500&q=80"
@@ -307,37 +307,9 @@ export const vets = [
   }
 ];
 
-export const chatMessages = [
-  {
-    id: "chat-1",
-    from: "them",
-    text: "Hi! Luna looks so cute.",
-    time: "10:30 AM"
-  },
-  {
-    id: "chat-2",
-    from: "me",
-    text: "Thank you! She is very friendly with other cats too.",
-    time: "10:32 AM"
-  },
-  {
-    id: "chat-3",
-    from: "them",
-    text: "Would you like to set up a playdate sometime?",
-    time: "10:33 AM"
-  },
-  {
-    id: "chat-4",
-    from: "me",
-    text: "Yes! That would be purrfect.",
-    time: "10:35 AM"
-  }
-];
-
 export const profileMenu = [
   { label: "My PawPals", icon: Users },
   { label: "Saved Posts", icon: Bookmark },
-  { label: "My Vet Visits", icon: Hospital },
   { label: "Notifications", icon: Bell },
   { label: "Settings", icon: PawPrint }
 ];

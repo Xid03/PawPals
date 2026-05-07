@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, Globe, Heart, MapPin, Phone, ShieldPlus, Star } from "lucide-react";
+import { ArrowLeft, Globe, Heart, MapPin, Phone, ShieldPlus, Star } from "lucide-react";
+import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiVet } from "@/lib/api-client";
+import { vetPlaceholderImage } from "@/lib/vet-images";
 import { vets as mockVets } from "@/data/mockData";
 
 function serviceLabel(type: string) {
@@ -12,15 +14,6 @@ function serviceLabel(type: string) {
     .split("_")
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }
 
 export function VetDetailClient({ id }: { id: string }) {
@@ -37,7 +30,7 @@ export function VetDetailClient({ id }: { id: string }) {
 
   const display = {
     name: vet?.name ?? fallback.name,
-    image: vet?.imageUrl ?? "",
+    image: vet?.imageUrl ?? vetPlaceholderImage({ id, name: vet?.name ?? fallback.name, city: vet?.city ?? fallback.distance }),
     address: vet?.address ?? fallback.distance,
     distance: vet?.city ?? fallback.distance,
     rating: vet?.rating ?? fallback.rating,
@@ -50,7 +43,7 @@ export function VetDetailClient({ id }: { id: string }) {
     services: vet?.services?.map((service) => serviceLabel(service.type)) ?? fallback.services.map((service) => service.label)
   };
   const isGoogleLogo = display.image.includes("google.com/s2/favicons");
-  const showImage = display.image && !imageFailed;
+  const showImage = Boolean(display.image) && !imageFailed;
 
   async function favorite() {
     try {
@@ -59,23 +52,6 @@ export function VetDetailClient({ id }: { id: string }) {
       setStatus("Favorite vets updated");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not favorite vet");
-    }
-  }
-
-  async function book() {
-    try {
-      requireSignedIn();
-      await apiFetch("/api/appointments", {
-        method: "POST",
-        body: JSON.stringify({
-          vetId: id,
-          startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-          reason: "Appointment requested from PawPals UI"
-        })
-      });
-      setStatus("Appointment requested");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not request appointment");
     }
   }
 
@@ -107,12 +83,11 @@ export function VetDetailClient({ id }: { id: string }) {
             className={`h-full w-full ${isGoogleLogo ? "bg-white p-14 object-contain" : "object-cover"}`}
           />
         ) : (
-          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-paw-lilac to-paw-blush text-paw-lavender">
-            <div className="text-center">
-              <Building2 className="mx-auto mb-3" size={42} />
-              <span className="text-2xl font-black">{initials(display.name)}</span>
-            </div>
-          </div>
+          <img
+            src={vetPlaceholderImage({ id, name: display.name, city: display.distance })}
+            alt={display.name}
+            className="h-full w-full object-cover"
+          />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-paw-ink/40 to-transparent" />
         <Link href="/vets" className="absolute left-5 top-6 grid h-10 w-10 place-items-center rounded-full bg-white/75 text-paw-ink" aria-label="Go back">
@@ -137,7 +112,7 @@ export function VetDetailClient({ id }: { id: string }) {
           <Star size={16} className="fill-[#FFB23F] text-[#FFB23F]" />
           {display.rating} ({display.reviews} reviews)
         </p>
-        {status ? <p className="mt-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
 
         <div className="mt-5 grid grid-cols-3 gap-3">
           {[
@@ -176,14 +151,6 @@ export function VetDetailClient({ id }: { id: string }) {
             ))}
           </div>
         </section>
-
-        <button
-          type="button"
-          onClick={book}
-          className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-paw-lavender px-5 py-3 text-sm font-extrabold text-white shadow-soft transition hover:brightness-105"
-        >
-          Book Appointment
-        </button>
       </div>
     </section>
   );

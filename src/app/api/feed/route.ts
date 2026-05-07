@@ -26,13 +26,16 @@ export async function GET(request: NextRequest) {
     const posts = await prisma.post.findMany({
       where: {
         ...(topic ? { topic: topic as never } : {}),
-        ...(mode === "following" ? { authorId: { in: followingIds } } : {})
+        ...(mode === "following" ? { authorId: { in: followingIds } } : {}),
+        ...(mode === "saved" ? { saves: { some: { userId: auth.id } } } : {}),
+        author: { OR: [{ isPrivate: false }, { id: auth.id }, { followers: { some: { followerId: auth.id } } }] }
       },
       skip: page.skip,
       take: page.take,
       include: {
-        author: { select: { id: true, name: true, username: true, avatarUrl: true } },
+        author: { select: { id: true, name: true, username: true, avatarUrl: true, isPrivate: true } },
         images: true,
+        saves: { where: { userId: auth.id }, select: { id: true } },
         _count: { select: { likes: true, comments: true, saves: true } }
       },
       orderBy:
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest) {
           : { createdAt: "desc" }
     });
 
-    return paginated(posts, page);
+    return paginated(posts.map((post) => ({ ...post, savedByMe: post.saves.length > 0 })), page);
   } catch (error) {
     return handleRouteError(error);
   }

@@ -21,7 +21,8 @@ export const updateUserSchema = z.object({
   city: z.string().max(80).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  avatarUrl: z.string().url().nullable().optional()
+  avatarUrl: z.string().url().nullable().optional(),
+  isPrivate: z.boolean().optional()
 });
 
 export const catSchema = z.object({
@@ -77,13 +78,6 @@ export const messageSchema = z.object({
   type: z.enum(["TEXT", "IMAGE", "STICKER"]).default("TEXT")
 });
 
-export const appointmentSchema = z.object({
-  vetId: z.string().min(1),
-  catId: z.string().optional(),
-  startsAt: z.string().datetime(),
-  reason: z.string().max(600).optional()
-});
-
 export const eventSchema = z.object({
   title: z.string().min(1).max(140),
   description: z.string().max(1000).optional(),
@@ -112,7 +106,7 @@ export const notificationSchema = z.object({
     "POST_LIKE",
     "POST_COMMENT",
     "EVENT_REMINDER",
-    "APPOINTMENT_UPDATE"
+    "FOLLOW_REQUEST"
   ]),
   title: z.string().min(1).max(160),
   body: z.string().min(1).max(400),

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bookmark, ChevronRight, MapPin, PawPrint, Search, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
+import { StatusToast } from "@/components/StatusToast";
 import { TagChip } from "@/components/TagChip";
 import { apiFetch, requireSignedIn, type ApiHealthTip } from "@/lib/api-client";
 import { healthTipCategories } from "@/data/mockData";
@@ -218,7 +219,7 @@ export function HealthTipsClient() {
           </button>
         ))}
       </div>
-      {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+      <StatusToast message={status} onDismiss={() => setStatus("")} />
       <h2 className="mb-3 flex items-center gap-2 text-[21px] font-black">Daily Tip <Sparkles className="text-[#F7B744]" size={20} /></h2>
       <section className="relative mb-5 overflow-hidden rounded-[20px] border border-[#F7B744]/40 bg-[#FFF1CB] p-5 shadow-soft">
         <div className="relative z-10 max-w-[58%]">

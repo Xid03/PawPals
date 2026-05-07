@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bell, Filter, MapPin, PawPrint, Search, Sparkles, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { StatusToast } from "@/components/StatusToast";
 import { VetCard, type DisplayVet } from "@/components/VetCard";
 import { apiFetch, type ApiVet } from "@/lib/api-client";
+import { ensureUniqueVetImages } from "@/lib/vet-images";
 
 function mapVet(vet: ApiVet): DisplayVet {
   const distance =
@@ -39,6 +41,7 @@ export function VetDirectoryClient() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [status, setStatus] = useState("");
   const [subtitle, setSubtitle] = useState("Malaysia");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: "50" });
@@ -99,7 +102,7 @@ export function VetDirectoryClient() {
     ["SURGERY", "Surgery"],
     ["EMERGENCY", "Emergency"]
   ];
-  const visibleVets = (hasLoaded ? apiVets.map(mapVet) : []).filter((vet) => !openOnly || vet.status === "Open");
+  const visibleVets = (hasLoaded ? ensureUniqueVetImages(apiVets).map(mapVet) : []).filter((vet) => !openOnly || vet.status === "Open");
   const activeFilterCount = [openOnly, city !== "All", service !== "All", minRating !== "0"].filter(Boolean).length;
 
   function clearFilters() {
@@ -131,9 +134,9 @@ export function VetDirectoryClient() {
           </div>
           <button
             type="button"
-            onClick={() => setQuery("")}
+            onClick={() => searchInputRef.current?.focus()}
             className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-[#6b3f35] shadow-[0_10px_22px_rgba(122,81,63,0.06)]"
-            aria-label="Clear search"
+            aria-label="Search vets"
           >
             <Search size={25} strokeWidth={2.3} />
           </button>
@@ -142,6 +145,7 @@ export function VetDirectoryClient() {
         <label className="mb-4 flex h-14 items-center gap-3 rounded-[20px] bg-white px-4 shadow-[0_10px_26px_rgba(122,81,63,0.055)]">
           <Search size={22} className="shrink-0 text-[#7a5148]" />
           <input
+            ref={searchInputRef}
             placeholder="Search vets or clinics..."
             className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#2f272a] outline-none placeholder:text-[#a89a95]"
             value={query}
@@ -240,7 +244,7 @@ export function VetDirectoryClient() {
           </section>
         ) : null}
 
-        {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
         <div className="space-y-3">
           {visibleVets.length ? visibleVets.map((vet) => (
             <VetCard key={vet.id} vet={vet} />

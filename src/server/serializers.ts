@@ -6,6 +6,7 @@ export function publicUser<T extends {
   bio?: string | null;
   avatarUrl?: string | null;
   city?: string | null;
+  isPrivate?: boolean;
   createdAt?: Date;
 }>(user: T) {
   return {
@@ -15,6 +16,7 @@ export function publicUser<T extends {
     bio: user.bio,
     avatarUrl: user.avatarUrl,
     city: user.city,
+    isPrivate: user.isPrivate ?? false,
     createdAt: user.createdAt
   };
 }

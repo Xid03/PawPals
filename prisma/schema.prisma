@@ -51,13 +51,6 @@ enum VetServiceType {
   EMERGENCY
 }
 
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-}
-
 enum EventCategory {
   NEARBY
   WORKSHOPS
@@ -79,7 +72,13 @@ enum NotificationType {
   POST_LIKE
   POST_COMMENT
   EVENT_REMINDER
-  APPOINTMENT_UPDATE
+  FOLLOW_REQUEST
+}
+
+enum FollowRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -91,6 +90,7 @@ model User {
   bio             String?
   avatarUrl       String?
   city            String?
+  isPrivate       Boolean         @default(false)
   latitude        Float?
   longitude       Float?
   provider        AuthProvider    @default(EMAIL)
@@ -101,6 +101,8 @@ model User {
   cats            CatProfile[]
   following       Follow[]        @relation("following")
   followers       Follow[]        @relation("followers")
+  sentFollowRequests     FollowRequest[] @relation("sentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("receivedFollowRequests")
   posts           Post[]
   comments        Comment[]
   postLikes       Like[]
@@ -113,7 +115,6 @@ model User {
   conversations   ConversationParticipant[]
   messages        Message[]
   favoriteVets    FavoriteVet[]
-  appointments    Appointment[]
   events          Event[]
   eventRsvps      EventRSVP[]
   savedEvents     SavedEvent[]
@@ -134,6 +135,21 @@ model Follow {
 
   @@unique([followerId, followingId])
   @@index([followingId])
+}
+
+model FollowRequest {
+  id          String              @id @default(cuid())
+  requesterId String
+  targetId    String
+  status      FollowRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  requester   User                @relation("sentFollowRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  target      User                @relation("receivedFollowRequests", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, targetId])
+  @@index([targetId, status])
 }
 
 model CatProfile {
@@ -367,7 +383,6 @@ model Vet {
 
   services     VetService[]
   favorites    FavoriteVet[]
-  appointments Appointment[]
 
   @@index([city])
   @@index([rating])
@@ -394,24 +409,6 @@ model FavoriteVet {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([vetId, userId])
-}
-
-model Appointment {
-  id        String            @id @default(cuid())
-  vetId     String
-  userId    String
-  catId     String?
-  startsAt  DateTime
-  reason    String?
-  status    AppointmentStatus @default(PENDING)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-
-  vet       Vet               @relation(fields: [vetId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, startsAt])
-  @@index([vetId, startsAt])
 }
 
 model Event {

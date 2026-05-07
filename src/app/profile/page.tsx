@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, LogOut, MapPin, MessageCircle, PawPrint, Settings, Sparkles, UserRound, Users, X } from "lucide-react";
+import { AtSign, Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, Lock, LogOut, MapPin, MessageCircle, PawPrint, Settings, Sparkles, UserRound, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
+import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, clearGuestMode, clearToken, isGuestMode, requireSignedIn, type ApiPost, type PublicUser } from "@/lib/api-client";
 import { currentUser } from "@/data/mockData";
 import homepageImage from "../../../images/homepage.png";
@@ -12,7 +14,7 @@ import profile1 from "../../../images/profile1.png";
 import profileBg from "../../../images/profileBg.png";
 import profileIcon from "../../../images/profileIcon.png";
 
-type ProfilePanel = "posts" | "followers" | "following" | "saved" | "visits" | "notifications" | "settings" | null;
+type ProfilePanel = "posts" | "followers" | "following" | "saved" | "notifications" | "settings" | null;
 
 type ProfileStats = {
   posts: number;
@@ -20,33 +22,42 @@ type ProfileStats = {
   following: number;
 };
 
+type FollowRequest = {
+  id: string;
+  requester: PublicUser;
+  createdAt: string;
+};
+
 const profileActions = [
   { label: "My PawPals", panel: "followers" as const, icon: Users, bubble: "bg-[#eee4ff] text-paw-lavender" },
   { label: "Saved Posts", panel: "saved" as const, icon: Bookmark, bubble: "bg-[#ffe1ec] text-paw-pink" },
-  { label: "My Vet Visits", panel: "visits" as const, icon: CalendarCheck, bubble: "bg-[#ffead5] text-[#ff9a56]" },
   { label: "Notifications", panel: "notifications" as const, icon: Bell, bubble: "bg-[#eee4ff] text-paw-lavender" },
   { label: "Settings", panel: "settings" as const, icon: Settings, bubble: "bg-[#dcf5df] text-[#47c95a]" }
 ];
 
 export default function UserProfilePage() {
   const router = useRouter();
+  const { currentUser: initialUser, setCurrentUser } = useCurrentUser();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("");
-  const [user, setUser] = useState<PublicUser | null>(null);
-  const [name, setName] = useState(currentUser.name);
-  const [username, setUsername] = useState("catlover");
-  const [city, setCity] = useState("");
-  const [bio, setBio] = useState("");
+  const [user, setUser] = useState<PublicUser | null>(initialUser);
+  const [name, setName] = useState(initialUser?.name || currentUser.name);
+  const [username, setUsername] = useState(initialUser?.username || "catlover");
+  const [city, setCity] = useState(initialUser?.city ?? "");
+  const [bio, setBio] = useState(initialUser?.bio ?? "");
+  const [isPrivate, setIsPrivate] = useState(initialUser?.isPrivate ?? false);
   const [showEdit, setShowEdit] = useState(false);
   const [activePanel, setActivePanel] = useState<ProfilePanel>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [guest, setGuest] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(currentUser.catAvatar);
+  const [avatarPreview, setAvatarPreview] = useState(initialUser?.avatarUrl || currentUser.catAvatar);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [stats, setStats] = useState<ProfileStats>({ posts: 0, followers: 0, following: 0 });
   const [profilePosts, setProfilePosts] = useState<ApiPost[]>([]);
   const [followers, setFollowers] = useState<PublicUser[]>([]);
   const [following, setFollowing] = useState<PublicUser[]>([]);
+  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
+  const [isLoadingFollowRequests, setIsLoadingFollowRequests] = useState(false);
 
   useEffect(() => {
     if (isGuestMode()) {
@@ -56,22 +67,25 @@ export default function UserProfilePage() {
       setUsername("guest");
       setCity("");
       setBio("");
+      setIsPrivate(false);
       setStats({ posts: 0, followers: 0, following: 0 });
       return;
     }
 
     apiFetch<{ user: PublicUser & { bio?: string | null } }>("/api/auth/me")
       .then((data) => {
+        setCurrentUser(data.user);
         setUser(data.user);
         setName(data.user.name);
         setUsername(data.user.username);
         setCity(data.user.city ?? "");
         setBio(data.user.bio ?? "");
+        setIsPrivate(data.user.isPrivate ?? false);
         setAvatarPreview(data.user.avatarUrl ?? currentUser.catAvatar);
         void loadProfileData(data.user.id);
       })
       .catch(() => undefined);
-  }, []);
+  }, [setCurrentUser]);
 
   const displayName = guest ? "Guest" : user?.name ?? name;
   const displayRole = guest ? "Browsing PawPals" : user ? `@${user.username}` : currentUser.role;
@@ -85,11 +99,9 @@ export default function UserProfilePage() {
           ? "Following"
           : activePanel === "saved"
             ? "Saved Posts"
-            : activePanel === "visits"
-              ? "My Vet Visits"
-              : activePanel === "notifications"
-                ? "Notifications"
-                : "Settings";
+            : activePanel === "notifications"
+              ? "Notifications"
+              : "Settings";
 
   async function loadProfileData(userId: string) {
     try {
@@ -105,6 +117,18 @@ export default function UserProfilePage() {
       setFollowing(followingData);
     } catch {
       setStats({ posts: 0, followers: 0, following: 0 });
+    }
+  }
+
+  async function loadFollowRequests() {
+    setIsLoadingFollowRequests(true);
+    try {
+      const requests = await apiFetch<FollowRequest[]>("/api/follow-requests?limit=20");
+      setFollowRequests(requests);
+    } catch {
+      setFollowRequests([]);
+    } finally {
+      setIsLoadingFollowRequests(false);
     }
   }
 
@@ -126,6 +150,9 @@ export default function UserProfilePage() {
       requireSignedIn();
       setActivePanel(panel);
       setStatus("");
+      if (panel === "notifications") {
+        void loadFollowRequests();
+      }
     } catch {
       setStatus("");
     }
@@ -153,7 +180,8 @@ export default function UserProfilePage() {
           name,
           username,
           city: city || null,
-          bio: bio || null
+          bio: bio || null,
+          isPrivate
         })
       });
       let nextUser = data.user;
@@ -169,8 +197,10 @@ export default function UserProfilePage() {
         setAvatarFile(null);
       }
       setUser(nextUser);
+      setCurrentUser(nextUser);
       setCity(nextUser.city ?? "");
       setBio(nextUser.bio ?? "");
+      setIsPrivate(nextUser.isPrivate ?? false);
       void loadProfileData(nextUser.id);
       setShowEdit(false);
       setStatus("Profile updated");
@@ -186,6 +216,54 @@ export default function UserProfilePage() {
     clearToken();
     clearGuestMode();
     router.push("/");
+  }
+
+  async function toggleProfilePostSave(postId: string) {
+    try {
+      requireSignedIn();
+      const result = await apiFetch<{ saved: boolean }>(`/api/posts/${postId}/save`, { method: "POST" });
+      setProfilePosts((current) =>
+        current.map((post) => (post.id === postId ? { ...post, savedByMe: result.saved } : post))
+      );
+      setStatus(result.saved ? "Post saved" : "Post removed from saved");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update saved post");
+    }
+  }
+
+  async function togglePrivateAccount() {
+    const nextIsPrivate = !isPrivate;
+    setIsPrivate(nextIsPrivate);
+    setStatus("");
+    try {
+      requireSignedIn();
+      const data = await apiFetch<{ user: PublicUser & { bio?: string | null } }>("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ isPrivate: nextIsPrivate })
+      });
+      setUser(data.user);
+      setCurrentUser(data.user);
+      setIsPrivate(data.user.isPrivate ?? false);
+      setStatus(data.user.isPrivate ? "Private account enabled" : "Private account disabled");
+    } catch (error) {
+      setIsPrivate(!nextIsPrivate);
+      setStatus(error instanceof Error ? error.message : "Could not update privacy");
+    }
+  }
+
+  async function answerFollowRequest(requestId: string, action: "approve" | "reject") {
+    try {
+      const data = await apiFetch<{ following: boolean }>(`/api/follow-requests/${requestId}/${action}`, {
+        method: "POST"
+      });
+      setFollowRequests((current) => current.filter((request) => request.id !== requestId));
+      if (data.following) {
+        setStats((current) => ({ ...current, followers: current.followers + 1 }));
+      }
+      setStatus(action === "approve" ? "Follow request approved" : "Follow request rejected");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update follow request");
+    }
   }
 
   return (
@@ -270,7 +348,7 @@ export default function UserProfilePage() {
       </div>
 
       <div className="mt-3 px-6">
-        {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
         {!guest ? (
           <section className="relative mb-3 min-h-[74px] overflow-hidden rounded-[22px] bg-white/82 p-3 shadow-soft">
             <div className="flex items-center gap-3">
@@ -308,7 +386,6 @@ export default function UserProfilePage() {
                 </span>
                 <span className="flex-1 text-sm font-black text-paw-ink">{item.label}</span>
                 <span className="flex items-center gap-3">
-                  {item.panel === "notifications" ? <span className="h-3 w-3 rounded-full bg-paw-pink" /> : null}
                   <ChevronRight size={19} className="text-paw-cocoa/45" />
                 </span>
               </button>
@@ -458,17 +535,25 @@ export default function UserProfilePage() {
               {profilePosts.length ? (
                 <div className="grid max-h-[52vh] gap-3 overflow-y-auto pb-2">
                   {profilePosts.map((post) => (
-                    <button
+                    <div
                       key={post.id}
-                      type="button"
-                      onClick={() => router.push("/community")}
-                      className="rounded-2xl border border-paw-peach/40 bg-white/75 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
+                      className="flex items-center gap-3 rounded-2xl border border-paw-peach/40 bg-white/75 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
                     >
-                      <p className="line-clamp-2 text-sm font-extrabold text-paw-ink">{post.text}</p>
-                      <p className="mt-2 text-xs font-bold text-paw-cocoa/65">
-                        {post._count?.likes ?? 0} likes - {post._count?.comments ?? 0} comments
-                      </p>
-                    </button>
+                      <button type="button" onClick={() => router.push(`/community?postId=${post.id}`)} className="min-w-0 flex-1 text-left">
+                        <p className="line-clamp-2 text-sm font-extrabold text-paw-ink">{post.text}</p>
+                        <p className="mt-2 text-xs font-bold text-paw-cocoa/65">
+                          {post._count?.likes ?? 0} likes - {post._count?.comments ?? 0} comments
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleProfilePostSave(post.id)}
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-paw-lavender"
+                        aria-label={post.savedByMe ? "Remove saved post" : "Save post"}
+                      >
+                        <Bookmark size={20} className={post.savedByMe ? "fill-paw-lavender" : ""} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -500,7 +585,7 @@ export default function UserProfilePage() {
                     <button
                       key={person.id}
                       type="button"
-                      onClick={() => router.push("/discover")}
+                      onClick={() => router.push(`/users/${person.id}`)}
                       className="flex min-h-20 items-center gap-4 rounded-2xl bg-white/76 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
                     >
                       <img src={person.avatarUrl ?? currentUser.catAvatar} alt={person.name} className="h-14 w-14 rounded-full object-cover ring-4 ring-white" />
@@ -534,34 +619,55 @@ export default function UserProfilePage() {
 
           {activePanel === "saved" ? (
             <div className="grid gap-4 rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5">
-              <button type="button" onClick={() => router.push("/community")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+              <button type="button" onClick={() => router.push("/community?mode=saved")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
                 <Bookmark size={24} className="fill-paw-pink/20 text-paw-pink" />
                 View Saved Posts
               </button>
-              <button type="button" onClick={() => router.push("/events")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+              <button type="button" onClick={() => router.push("/events?mode=saved")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
                 <CalendarCheck size={24} className="text-paw-pink" />
                 View Saved Events
               </button>
             </div>
           ) : null}
 
-          {activePanel === "visits" ? (
-            <div className="rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5 text-center">
-              <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-[#ffead5] text-[#ff9a56]">
-                <CalendarCheck size={42} />
-              </div>
-              <h3 className="mt-4 text-[24px] font-black text-paw-cocoa">No upcoming visits yet.</h3>
-              <p className="mx-auto mt-2 max-w-[240px] text-base font-bold leading-snug text-paw-cocoa/70">
-                Book a vet visit when your cat needs care.
-              </p>
-              <button type="button" onClick={() => router.push("/vets")} className="mt-5 h-14 w-full rounded-[22px] bg-paw-lavender text-base font-black text-white shadow-soft">
-                Book a Vet Visit
-              </button>
-            </div>
-          ) : null}
-
           {activePanel === "notifications" ? (
             <div className="grid max-h-[52vh] gap-3 overflow-y-auto rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-4">
+              {isLoadingFollowRequests ? (
+                <p className="rounded-2xl bg-white/76 px-4 py-3 text-base font-bold text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                  Loading requests...
+                </p>
+              ) : null}
+              {followRequests.map((request) => (
+                <div key={request.id} className="rounded-2xl bg-white/76 px-4 py-3 shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={request.requester.avatarUrl ?? currentUser.catAvatar}
+                      alt={request.requester.username}
+                      className="h-12 w-12 rounded-full object-cover ring-4 ring-white"
+                    />
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-base font-black text-paw-cocoa">{request.requester.name}</p>
+                      <p className="truncate text-sm font-bold text-paw-cocoa/65">@{request.requester.username}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => answerFollowRequest(request.id, "approve")}
+                      className="h-10 rounded-[18px] bg-paw-pink text-sm font-black text-white shadow-soft"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => answerFollowRequest(request.id, "reject")}
+                      className="h-10 rounded-[18px] bg-white text-sm font-black text-paw-cocoa shadow-soft"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
               {["New tips are available today.", "Remember to refresh your cat's water.", "Check nearby events this week."].map((item) => (
                 <p key={item} className="flex min-h-16 items-center gap-3 rounded-2xl bg-white/76 px-4 py-3 text-base font-bold text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
                   <Bell size={22} className="shrink-0 text-paw-pink" />
@@ -573,6 +679,20 @@ export default function UserProfilePage() {
 
           {activePanel === "settings" ? (
             <div className="grid gap-4 rounded-[28px] border-2 border-dashed border-paw-peach/70 bg-white/50 p-5">
+              <button type="button" onClick={togglePrivateAccount} className="flex min-h-16 items-center gap-3 rounded-[24px] bg-white/80 px-4 text-left text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-paw-blush text-paw-pink">
+                  <Lock size={21} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-black">Private Account</span>
+                  <span className="mt-1 block text-xs font-bold leading-snug text-paw-cocoa/65">
+                    Hide posts, followers, following, and chat access from others.
+                  </span>
+                </span>
+                <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${isPrivate ? "bg-paw-pink" : "bg-paw-cocoa/20"}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${isPrivate ? "left-6" : "left-1"}`} />
+                </span>
+              </button>
               <button type="button" onClick={openEditProfile} className="inline-flex h-14 items-center justify-center gap-3 rounded-[22px] bg-white/80 text-base font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
                 <Edit3 size={21} className="text-paw-pink" />
                 Edit Profile

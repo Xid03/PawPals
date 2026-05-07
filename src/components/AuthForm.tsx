@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Apple, Camera, Eye, Heart, Lock, Mail, MapPin, PawPrint, Sparkles, UserRound } from "lucide-react";
+import { Camera, Eye, Heart, Lock, Mail, MapPin, PawPrint, Sparkles, UserRound } from "lucide-react";
 import { apiFetch, setToken, type PublicUser } from "@/lib/api-client";
 import catLoginImage from "../../images/catLogin.png";
 import loginBg from "../../images/loginBg.png";
@@ -253,7 +253,7 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
                 <span className="text-sm font-black text-paw-cocoa/75">City</span>
                 <input
                   className="w-full bg-transparent text-xl font-bold outline-none placeholder:text-paw-cocoa/45"
-                  placeholder="Enter your city"
+                  placeholder="Kuala Lumpur"
                   value={city}
                   onChange={(event) => setCity(event.target.value)}
                   maxLength={80}
@@ -346,34 +346,6 @@ export function AuthForm({ initialMode }: { initialMode: "login" | "signup" }) {
 
         {!needsProfileSetup ? (
           <>
-        <div className="mx-auto my-7 flex w-[230px] items-center gap-5 text-lg font-extrabold text-paw-cocoa/70">
-          <span className="h-px flex-1 bg-paw-cocoa/15" />
-          <PawPrint size={22} className="fill-paw-cocoa/15 text-paw-cocoa/60" />
-          or
-          <span className="h-px flex-1 bg-paw-cocoa/15" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            className="flex h-[62px] items-center justify-center gap-3 rounded-[22px] bg-white/84 text-xl font-black text-paw-ink shadow-soft backdrop-blur"
-            type="button"
-            onClick={() => setError("Google sign-in is not connected yet. Please use email and password.")}
-            aria-label="Continue with Google"
-          >
-            <span className="text-[24px] font-black text-[#4285F4]">G</span>
-            Google
-          </button>
-          <button
-            className="flex h-[62px] items-center justify-center gap-3 rounded-[22px] bg-white/84 text-xl font-black text-paw-ink shadow-soft backdrop-blur"
-            type="button"
-            onClick={() => setError("Apple sign-in is not connected yet. Please use email and password.")}
-            aria-label="Continue with Apple"
-          >
-            <Apple size={25} className="fill-paw-ink" />
-            Apple
-          </button>
-        </div>
-
         <p className="mt-10 text-center text-xl font-extrabold text-paw-cocoa/75">
           {isLogin ? "New to PawPals?" : "Already have an account?"}{" "}
           <button

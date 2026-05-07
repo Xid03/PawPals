@@ -11,7 +11,6 @@ async function main() {
   await prisma.savedEvent.deleteMany();
   await prisma.eventRSVP.deleteMany();
   await prisma.event.deleteMany();
-  await prisma.appointment.deleteMany();
   await prisma.favoriteVet.deleteMany();
   await prisma.vetService.deleteMany();
   await prisma.vet.deleteMany();
@@ -40,7 +39,7 @@ async function main() {
         email: "maya@pawpals.test",
         username: "whiskersmom",
         name: "Maya",
-        city: "New York",
+        city: "Kuala Lumpur",
         avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80",
         passwordHash
       }
@@ -50,7 +49,7 @@ async function main() {
         email: "noah@pawpals.test",
         username: "catdad",
         name: "Noah",
-        city: "New York",
+        city: "Ipoh",
         avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80",
         passwordHash
       }
@@ -60,7 +59,7 @@ async function main() {
         email: "lina@pawpals.test",
         username: "pawtails",
         name: "Lina",
-        city: "Brooklyn",
+        city: "Petaling Jaya",
         passwordHash
       }
     })
@@ -75,9 +74,9 @@ async function main() {
       breed: "Persian",
       personalityTags: ["Calm", "Friendly", "Shy"],
       lookingFor: ["Playmate", "Cat Friends"],
-      city: "New York",
-      latitude: 40.7306,
-      longitude: -73.9352,
+      city: "Kuala Lumpur",
+      latitude: 3.139,
+      longitude: 101.6869,
       description: "Loves naps, calm people, and chicken treats.",
       photos: {
         create: {
@@ -96,9 +95,9 @@ async function main() {
       breed: "British Shorthair",
       personalityTags: ["Curious", "Social", "Gentle"],
       lookingFor: ["Walk Buddy", "Playdate"],
-      city: "New York",
-      latitude: 40.7128,
-      longitude: -74.006,
+      city: "Ipoh",
+      latitude: 4.5975,
+      longitude: 101.0901,
       description: "Window watcher and gentle playdate expert.",
       photos: {
         create: {
@@ -222,7 +221,7 @@ async function main() {
     prisma.vet.create({
       data: {
         name: "Vets for Pets Animal Clinic Solaris Mont Kiara",
-        description: "VPAC branch in Solaris Mont Kiara providing appointment-based veterinary care.",
+        description: "VPAC branch in Solaris Mont Kiara providing veterinary care.",
         imageUrl: "https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&w=900&q=80",
         address: "No. 5, Jalan Solaris 4, Solaris Mont Kiara, 50480 Kuala Lumpur",
         city: "Kuala Lumpur",
@@ -230,7 +229,7 @@ async function main() {
         longitude: 101.6507,
         rating: 4.6,
         isOpen: true,
-        openHours: "Appointment recommended",
+        openHours: "Call clinic for current hours",
         services: {
           create: [
             { type: "CHECKUP" },
@@ -457,8 +456,8 @@ async function main() {
         description: "A relaxed social morning for cat owners.",
         category: "MEETUPS",
         startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        location: "Purrista Cat Cafe, Downtown",
-        city: "New York"
+        location: "Purrista Cat Cafe, Ipoh",
+        city: "Ipoh"
       },
       {
         organizerId: noah.id,
@@ -466,8 +465,8 @@ async function main() {
         description: "Meet adoptable kittens and local shelters.",
         category: "ADOPTION",
         startsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        location: "Happy Paws Shelter",
-        city: "New York"
+        location: "Happy Paws Shelter, Petaling Jaya",
+        city: "Petaling Jaya"
       }
     ]
   });
@@ -491,16 +490,6 @@ async function main() {
         category: "BEHAVIOR"
       }
     ]
-  });
-
-  await prisma.appointment.create({
-    data: {
-      userId: maya.id,
-      vetId: vet.id,
-      catId: luna.id,
-      startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      reason: "Annual checkup"
-    }
   });
 }
 

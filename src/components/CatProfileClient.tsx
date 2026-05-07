@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, MoreHorizontal, PawPrint } from "lucide-react";
+import { StatusToast } from "@/components/StatusToast";
 import { TagChip } from "@/components/TagChip";
 import { apiFetch, ageLabel, catImage, requireSignedIn, type ApiCat } from "@/lib/api-client";
 import { cats as mockCats } from "@/data/mockData";
@@ -82,7 +83,7 @@ export function CatProfileClient({ id }: { id: string }) {
       </div>
 
       <div className="space-y-5 px-5 pt-5">
-        {status ? <p className="text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
         <section>
           <h2 className="mb-2 text-sm font-black">About {display.name}</h2>
           <p className="text-sm font-bold leading-relaxed text-paw-cocoa">{display.about}</p>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bookmark, Camera, ChevronLeft, ChevronRight, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Send, Sparkles, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { StatusToast } from "@/components/StatusToast";
 import type { DisplayPost } from "@/components/PostCard";
 import { apiFetch, requireSignedIn } from "@/lib/api-client";
 import { posts as mockPosts, stories as mockStories } from "@/data/mockData";
@@ -396,7 +397,7 @@ export default function StoriesPage() {
         </div>
       ) : null}
 
-      {status ? <p className="mb-3 px-5 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+      <StatusToast message={status} onDismiss={() => setStatus("")} />
       <div className="relative space-y-4 px-4">
         {[mockPosts[2], mockPosts[1]].map((post, index) => (
           <article key={post.id} className="relative overflow-hidden rounded-[28px] bg-white/86 p-4 shadow-[0_18px_45px_rgba(122,81,63,0.1)]">

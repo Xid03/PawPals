@@ -47,7 +47,7 @@ export const malaysiaVets = [
   },
   {
     name: "Vets for Pets Animal Clinic Solaris Mont Kiara",
-    description: "VPAC branch in Solaris Mont Kiara providing appointment-based veterinary care.",
+    description: "VPAC branch in Solaris Mont Kiara providing veterinary care.",
     imageUrl: googleLogo("vpac.com.my"),
     address: "No. 5, Jalan Solaris 4, Solaris Mont Kiara, 50480 Kuala Lumpur",
     city: "Kuala Lumpur",
@@ -55,7 +55,7 @@ export const malaysiaVets = [
     longitude: 101.6507,
     rating: 4.6,
     isOpen: true,
-    openHours: "Appointment recommended",
+    openHours: "Call clinic for current hours",
     services: ["CHECKUP", "VACCINATION", "DENTAL", "SURGERY"] satisfies VetServiceType[]
   },
   {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bookmark, Heart, MessageCircle, MoreHorizontal } from "lucide-react";
 import { requireSignedIn } from "@/lib/api-client";
 
@@ -13,6 +13,7 @@ export type DisplayPost = {
   image?: string;
   likes: number;
   comments: number;
+  savedByMe?: boolean;
 };
 
 export function PostCard({
@@ -32,9 +33,13 @@ export function PostCard({
 }) {
   const [likes, setLikes] = useState(post.likes);
   const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(post.savedByMe ?? false);
   const [message, setMessage] = useState("");
   const [showOptions, setShowOptions] = useState(false);
+
+  useEffect(() => {
+    setSaved(post.savedByMe ?? false);
+  }, [post.savedByMe]);
 
   function handleLike() {
     if (onLike) {

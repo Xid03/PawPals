@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Globe2, HeartPulse, Image as ImageIcon, PawPrint, Plus, Soup, Star, Tag, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { apiFetch, isGuestMode, requireSignedIn } from "@/lib/api-client";
-import { currentUser } from "@/data/mockData";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
+import { StatusToast } from "@/components/StatusToast";
+import { apiFetch, isGuestMode, requireSignedIn, type PublicUser } from "@/lib/api-client";
 import bgArtwork from "../../images/bg.png";
 import profileIcon from "../../images/profileIcon.png";
 
@@ -28,6 +29,7 @@ const topics = [
 ];
 
 export function CreatePostClient() {
+  const { currentUser, setCurrentUser } = useCurrentUser();
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [topic, setTopic] = useState("GENERAL");
@@ -36,11 +38,29 @@ export function CreatePostClient() {
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [guest, setGuest] = useState(false);
+  const [userName, setUserName] = useState(currentUser?.name || "PawPal");
+  const [userAvatar, setUserAvatar] = useState(currentUser?.avatarUrl || profileIcon.src);
   const router = useRouter();
 
   useEffect(() => {
-    setGuest(isGuestMode());
-  }, []);
+    const isGuest = isGuestMode();
+    setGuest(isGuest);
+    if (isGuest) {
+      setUserName("Guest");
+      setUserAvatar(profileIcon.src);
+      return;
+    }
+
+    apiFetch<{ user: PublicUser }>("/api/auth/me")
+      .then(({ user }) => {
+        setCurrentUser(user);
+        setUserName(user.name || "PawPal");
+        setUserAvatar(user.avatarUrl || profileIcon.src);
+      })
+      .catch(() => {
+        setUserAvatar(profileIcon.src);
+      });
+  }, [setCurrentUser]);
 
   function openMediaPicker() {
     try {
@@ -134,8 +154,8 @@ export function CreatePostClient() {
           <div className="mb-4 rounded-[22px] border border-paw-cocoa/15 bg-white/70 p-3">
             <div className="flex gap-3">
               <img
-                src={guest ? profileIcon.src : currentUser.avatar}
-                alt={guest ? "Guest" : currentUser.name}
+                src={guest ? profileIcon.src : userAvatar}
+                alt={guest ? "Guest" : userName}
                 className="h-14 w-14 shrink-0 rounded-full object-cover ring-[3px] ring-white shadow-soft"
               />
               <textarea
@@ -251,7 +271,7 @@ export function CreatePostClient() {
             </button>
           </div>
 
-          {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+          <StatusToast message={status} onDismiss={() => setStatus("")} />
           <button
             type="submit"
             disabled={isSubmitting}

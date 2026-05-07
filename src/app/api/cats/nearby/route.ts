@@ -6,8 +6,12 @@ import { getPagination } from "@/server/pagination";
 import { paginated, handleRouteError } from "@/server/responses";
 
 const cityCoordinates: Record<string, { latitude: number; longitude: number }> = {
-  "new york": { latitude: 40.7128, longitude: -74.006 },
-  brooklyn: { latitude: 40.6782, longitude: -73.9442 }
+  "kuala lumpur": { latitude: 3.139, longitude: 101.6869 },
+  ipoh: { latitude: 4.5975, longitude: 101.0901 },
+  "petaling jaya": { latitude: 3.1073, longitude: 101.6067 },
+  "shah alam": { latitude: 3.0733, longitude: 101.5185 },
+  penang: { latitude: 5.4164, longitude: 100.3327 },
+  "johor bahru": { latitude: 1.4927, longitude: 103.7414 }
 };
 
 function numberParam(value: string | null) {

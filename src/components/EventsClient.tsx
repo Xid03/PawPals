@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Bookmark, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, ImagePlus, MapPin, PawPrint, Search, Send, Tag, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiEvent } from "@/lib/api-client";
-import { events as mockEvents } from "@/data/mockData";
 import catEventImage from "../../images/eventCat.png";
 import eventIcon from "../../images/eventIcon.png";
 
@@ -21,6 +22,7 @@ type EventForm = {
 };
 
 type EventFilter = "All" | "Nearby" | "Workshops" | "Meetups" | "Adoption";
+type NearbyCoordinates = { lat: number; lng: number };
 
 type DisplayEvent = {
   id: string;
@@ -59,19 +61,17 @@ function displayCategory(category?: string | null): EventFilter {
   }
 }
 
-function inferMockCategory(event: (typeof mockEvents)[number]): EventFilter {
-  const text = `${event.title} ${event.place}`.toLowerCase();
-  if (text.includes("adoption")) return "Adoption";
-  if (text.includes("workshop")) return "Workshops";
-  if (text.includes("park") || text.includes("km")) return "Nearby";
-  return "Meetups";
-}
-
-function initialEvents(): DisplayEvent[] {
-  return mockEvents.map((event) => ({
-    ...event,
-    category: inferMockCategory(event)
-  }));
+function filterCategory(filter: EventFilter) {
+  switch (filter) {
+    case "Workshops":
+      return "WORKSHOPS";
+    case "Meetups":
+      return "MEETUPS";
+    case "Adoption":
+      return "ADOPTION";
+    default:
+      return null;
+  }
 }
 
 function initialEventForm(): EventForm {
@@ -92,34 +92,78 @@ function mapEvent(event: ApiEvent) {
     date: new Date(event.startsAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
     place: event.location,
     distance: typeof event.distanceKm === "number" ? `${event.distanceKm} km away` : event.city ?? "Nearby",
-    image: event.imageUrl ?? mockEvents[0].image,
+    image: event.imageUrl ?? catEventImage.src,
     category: displayCategory(event.category),
     distanceKm: event.distanceKm ?? null
   };
 }
 
 export function EventsClient() {
-  const [events, setEvents] = useState<DisplayEvent[]>(() => initialEvents());
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isSavedMode = searchParams.get("mode") === "saved";
+  const [events, setEvents] = useState<DisplayEvent[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<EventFilter>("All");
+  const [cityFilter, setCityFilter] = useState("");
   const [status, setStatus] = useState("");
   const [savedEventIds, setSavedEventIds] = useState<Set<string>>(() => new Set());
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLocatingNearby, setIsLocatingNearby] = useState(false);
   const [hasNearbyLocation, setHasNearbyLocation] = useState(false);
+  const [nearbyCoordinates, setNearbyCoordinates] = useState<NearbyCoordinates | null>(null);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [eventForm, setEventForm] = useState<EventForm>(() => initialEventForm());
   const [eventImage, setEventImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
   const [showEventSuccess, setShowEventSuccess] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  function eventsPath(params?: Record<string, string>) {
+    const nextParams = new URLSearchParams({
+      limit: "20",
+      ...(isSavedMode ? { mode: "saved" } : {}),
+      ...params
+    });
+    return `/api/events?${nextParams.toString()}`;
+  }
+
+  function eventQueryParams(overrides?: Record<string, string>) {
+    const params: Record<string, string> = {};
+    const trimmedQuery = query.trim();
+    const category = filterCategory(filter);
+
+    if (trimmedQuery) params.q = trimmedQuery;
+    if (category) params.category = category;
+    if (cityFilter.trim()) params.city = cityFilter.trim();
+    if (filter === "Nearby" && nearbyCoordinates) {
+      params.lat = String(nearbyCoordinates.lat);
+      params.lng = String(nearbyCoordinates.lng);
+    }
+
+    return { ...params, ...overrides };
+  }
+
+  function setEventItems(items: ApiEvent[]) {
+    setEvents(items.map(mapEvent));
+    setSavedEventIds(new Set(items.filter((event) => event.savedByMe).map((event) => event.id)));
+  }
 
   useEffect(() => {
-    apiFetch<ApiEvent[]>("/api/events?limit=20")
-      .then((items) => {
-        if (items.length) setEvents(items.map(mapEvent));
-      })
-      .catch(() => undefined);
-  }, []);
+    if (filter === "Nearby" && !nearbyCoordinates) return;
+
+    const timer = window.setTimeout(() => {
+      setIsLoadingEvents(true);
+      apiFetch<ApiEvent[]>(eventsPath(eventQueryParams()))
+        .then(setEventItems)
+        .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load events"))
+        .finally(() => setIsLoadingEvents(false));
+    }, query.trim() ? 250 : 0);
+
+    return () => window.clearTimeout(timer);
+  }, [cityFilter, filter, isSavedMode, nearbyCoordinates, query]);
 
   async function saveEvent(eventId: string) {
     setStatus("");
@@ -145,6 +189,9 @@ export function EventsClient() {
     try {
       await apiFetch(`/api/events/${eventId}/save`, { method: "POST" });
       setStatus(nextSaved ? "Event saved" : "Event removed from saved");
+      if (isSavedMode && !nextSaved) {
+        setEvents((current) => current.filter((event) => event.id !== eventId));
+      }
     } catch {
       setStatus(nextSaved ? "Event saved on this device" : "Event removed from saved");
     }
@@ -153,9 +200,14 @@ export function EventsClient() {
   function showAllEvents() {
     setFilter("All");
     setQuery("");
+    setCityFilter("");
     setStatus("");
     setHasNearbyLocation(false);
-    void refreshEvents().catch(() => undefined);
+    setNearbyCoordinates(null);
+    if (isSavedMode) {
+      router.push("/events");
+      return;
+    }
   }
 
   function selectFilter(nextFilter: EventFilter) {
@@ -166,6 +218,15 @@ export function EventsClient() {
 
     setFilter(nextFilter);
     setHasNearbyLocation(false);
+    setNearbyCoordinates(null);
+    setStatus("");
+  }
+
+  function clearFilters() {
+    setFilter("All");
+    setCityFilter("");
+    setHasNearbyLocation(false);
+    setNearbyCoordinates(null);
     setStatus("");
   }
 
@@ -183,22 +244,10 @@ export function EventsClient() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        try {
-          const params = new URLSearchParams({
-            limit: "20",
-            lat: String(latitude),
-            lng: String(longitude)
-          });
-          const items = await apiFetch<ApiEvent[]>(`/api/events?${params.toString()}`);
-          if (items.length) setEvents(items.map(mapEvent));
-          setHasNearbyLocation(true);
-          setStatus("Showing events nearest to you");
-        } catch (error) {
-          setHasNearbyLocation(false);
-          setStatus(error instanceof Error ? error.message : "Could not load nearby events");
-        } finally {
-          setIsLocatingNearby(false);
-        }
+        setNearbyCoordinates({ lat: latitude, lng: longitude });
+        setHasNearbyLocation(true);
+        setStatus("Showing events nearest to you");
+        setIsLocatingNearby(false);
       },
       () => {
         setHasNearbyLocation(false);
@@ -232,8 +281,8 @@ export function EventsClient() {
   }
 
   async function refreshEvents() {
-    const items = await apiFetch<ApiEvent[]>("/api/events?limit=20");
-    if (items.length) setEvents(items.map(mapEvent));
+    const items = await apiFetch<ApiEvent[]>(eventsPath(eventQueryParams()));
+    setEventItems(items);
   }
 
   async function createEvent(event: FormEvent<HTMLFormElement>) {
@@ -284,17 +333,7 @@ export function EventsClient() {
     }
   }
 
-  const visibleEvents = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return events.filter((event) => {
-      const matchesSearch =
-        !normalized ||
-        [event.title, event.place, event.distance].some((value) => value.toLowerCase().includes(normalized));
-      const matchesFilter =
-        filter === "All" || (filter === "Nearby" && hasNearbyLocation) || event.category === filter;
-      return matchesSearch && matchesFilter;
-    });
-  }, [events, filter, hasNearbyLocation, query]);
+  const visibleEvents = useMemo(() => events, [events]);
 
   return (
     <section className="min-h-screen bg-[#fff8f2] px-3 pb-24 pt-3">
@@ -302,7 +341,7 @@ export function EventsClient() {
         <header className="relative mb-5 flex items-center justify-center gap-3 pt-5">
           <PawPrint className="absolute left-1 top-1 h-16 w-16 rotate-[-8deg] fill-paw-rose/10 text-paw-rose/10" />
           <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />
-          <h1 className="text-[34px] font-black leading-none text-[#2f292d] drop-shadow-sm">Events</h1>
+          <h1 className="text-[34px] font-black leading-none text-[#2f292d] drop-shadow-sm">{isSavedMode ? "Saved Events" : "Events"}</h1>
           <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />
           <span className="absolute right-2 top-0 grid h-14 w-14 place-items-center overflow-hidden rounded-[18px]">
             <img src={eventIcon.src} alt="" className="h-full w-full object-cover" />
@@ -312,18 +351,72 @@ export function EventsClient() {
         <label className="mb-4 flex h-14 items-center gap-3 rounded-[20px] bg-white px-4 shadow-[0_10px_24px_rgba(137,91,77,0.055)]">
           <Search size={23} className="shrink-0 text-[#8a6760]" />
           <input
-            placeholder="Search events..."
+            ref={searchInputRef}
+            placeholder={isSavedMode ? "Search saved events..." : "Search events..."}
             className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#2f292d] outline-none placeholder:text-[#a6918c]"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#ffe7eb] text-paw-pink shadow-soft" aria-label="Filter events">
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-soft ${
+              showFilters || filter !== "All" || cityFilter ? "bg-paw-pink text-white" : "bg-[#ffe7eb] text-paw-pink"
+            }`}
+            aria-label="Filter events"
+            aria-expanded={showFilters}
+          >
             <Filter size={22} />
           </button>
         </label>
 
+        {showFilters ? (
+          <div className="mb-5 rounded-[22px] bg-white/88 p-3 shadow-[0_10px_24px_rgba(137,91,77,0.055)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-[#2f292d]">Filter Events</p>
+              <button type="button" onClick={clearFilters} className="text-xs font-black text-paw-pink">
+                Clear
+              </button>
+            </div>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {(["All", "Workshops", "Meetups", "Adoption"] as EventFilter[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => selectFilter(item)}
+                  className={`h-10 rounded-[15px] text-xs font-black transition ${
+                    filter === item ? "bg-paw-pink text-white shadow-soft" : "bg-paw-blush/60 text-paw-cocoa"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <label className="mb-3 flex h-11 items-center gap-2 rounded-[15px] border border-paw-peach/70 bg-white px-3">
+              <MapPin size={17} className="shrink-0 text-paw-pink" />
+              <input
+                value={cityFilter}
+                onChange={(event) => setCityFilter(event.target.value)}
+                placeholder="Filter by city, e.g. Ipoh"
+                className="min-w-0 flex-1 bg-transparent text-xs font-black text-[#2f292d] outline-none placeholder:text-[#a6918c]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={findNearbyEvents}
+              disabled={isLocatingNearby}
+              className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] text-xs font-black shadow-soft ${
+                filter === "Nearby" ? "bg-paw-pink text-white" : "bg-paw-blush text-paw-cocoa"
+              } disabled:opacity-70`}
+            >
+              <MapPin size={17} />
+              {isLocatingNearby ? "Finding nearby events..." : hasNearbyLocation ? "Showing nearby events" : "Use my location"}
+            </button>
+          </div>
+        ) : null}
+
         <div className="hide-scrollbar mb-6 flex gap-3 overflow-x-auto">
-          {(["All", "Nearby", "Workshops", "Meetups"] as EventFilter[]).map((item) => (
+          {(["All", "Nearby", "Workshops", "Meetups", "Adoption"] as EventFilter[]).map((item) => (
             <button
               key={item}
               type="button"
@@ -338,13 +431,13 @@ export function EventsClient() {
           ))}
         </div>
 
-        {status ? <p className="mb-3 text-xs font-extrabold text-paw-pink">{status}</p> : null}
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[21px] font-black text-[#2f292d]">
             <PawPrint className="h-6 w-6 fill-paw-pink/45 text-paw-pink" />
-            Upcoming Events
+            {isSavedMode ? "Your Saved Events" : "Upcoming Events"}
           </h2>
-          {filter !== "All" ? (
+          {filter !== "All" || isSavedMode ? (
             <button type="button" onClick={showAllEvents} className="inline-flex items-center gap-1 text-base font-black text-paw-pink">
               See all
               <ChevronRight size={19} />
@@ -353,15 +446,44 @@ export function EventsClient() {
         </div>
 
         <div className="space-y-3">
-          {visibleEvents.map((event) => (
-            <article key={event.id} className="flex gap-3 rounded-[22px] bg-white p-3 shadow-[0_10px_26px_rgba(137,91,77,0.06)]">
+          {isLoadingEvents ? (
+            <div className="grid gap-3">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="flex gap-3 rounded-[22px] bg-white p-3 shadow-[0_10px_26px_rgba(137,91,77,0.06)]">
+                  <div className="h-[96px] w-[96px] shrink-0 animate-pulse rounded-[16px] bg-paw-blush/70" />
+                  <div className="min-w-0 flex-1 space-y-3 py-1">
+                    <div className="h-5 w-4/5 animate-pulse rounded-full bg-paw-blush/70" />
+                    <div className="h-3 w-2/3 animate-pulse rounded-full bg-paw-blush/60" />
+                    <div className="h-3 w-3/4 animate-pulse rounded-full bg-paw-blush/60" />
+                    <div className="h-3 w-1/2 animate-pulse rounded-full bg-paw-blush/60" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : visibleEvents.length ? visibleEvents.map((event) => (
+            <article
+              key={event.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push(`/events/${event.id}`)}
+              onKeyDown={(keyboardEvent) => {
+                if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                  keyboardEvent.preventDefault();
+                  router.push(`/events/${event.id}`);
+                }
+              }}
+              className="flex cursor-pointer gap-3 rounded-[22px] bg-white p-3 shadow-[0_10px_26px_rgba(137,91,77,0.06)] transition active:scale-[0.99]"
+            >
               <img src={event.image} alt={event.title} className="h-[96px] w-[96px] shrink-0 rounded-[16px] object-cover" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-3">
                   <h3 className="line-clamp-2 flex-1 text-lg font-black leading-tight text-[#2f292d]">{event.title}</h3>
                   <button
                     type="button"
-                    onClick={() => saveEvent(event.id)}
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      saveEvent(event.id);
+                    }}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#fff4f5] text-paw-pink"
                     aria-label={savedEventIds.has(event.id) ? "Remove saved event" : "Save event"}
                   >
@@ -383,7 +505,12 @@ export function EventsClient() {
                 </p>
               </div>
             </article>
-          ))}
+          )) : (
+            <div className="rounded-[22px] bg-white px-5 py-8 text-center shadow-[0_10px_26px_rgba(137,91,77,0.06)]">
+              <PawPrint className="mx-auto h-10 w-10 fill-paw-pink/25 text-paw-pink/45" />
+              <p className="mt-3 text-sm font-black text-[#a18a85]">{isSavedMode ? "No saved events yet." : "No events right now."}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -455,7 +582,7 @@ export function EventsClient() {
                 value={eventForm.title}
                 onChange={(event) => updateEventForm("title", event.target.value)}
                 className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-4 text-xs font-black text-[#334155] outline-none transition focus:border-paw-pink/60 focus:shadow-[0_0_0_4px_rgba(247,101,137,0.12)]"
-                placeholder="Cat cafe meetup"
+                placeholder="Cat cafe meetup in Ipoh"
               />
             </label>
 
@@ -535,7 +662,7 @@ export function EventsClient() {
                   value={eventForm.location}
                   onChange={(event) => updateEventForm("location", event.target.value)}
                   className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-10 pr-4 text-[11px] font-black text-[#334155] outline-none"
-                  placeholder="PawPals Community Center"
+                  placeholder="PawPals Community Hub, Kuala Lumpur"
                 />
               </span>
             </label>
@@ -554,7 +681,7 @@ export function EventsClient() {
                   value={eventForm.city}
                   onChange={(event) => updateEventForm("city", event.target.value)}
                   className="h-10 w-full rounded-[14px] border border-paw-peach/65 bg-white/66 px-10 pr-4 text-[11px] font-black text-[#334155] outline-none"
-                  placeholder="New York"
+                  placeholder="Ipoh"
                 />
               </span>
             </label>

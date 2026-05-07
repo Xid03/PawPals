@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { PawPrint, UserRound } from "lucide-react";
-import { setGuestMode } from "@/lib/api-client";
+import { clearToken, setGuestMode } from "@/lib/api-client";
 
 export function GuestContinueButton() {
   const router = useRouter();
@@ -10,7 +10,9 @@ export function GuestContinueButton() {
   return (
     <button
       type="button"
-      onClick={() => {
+      onClick={async () => {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
+        clearToken();
         setGuestMode();
         router.push("/home");
       }}

@@ -5,6 +5,7 @@ export type ApiErrorCode =
   | "BAD_REQUEST"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "PRIVATE_ACCOUNT"
   | "NOT_FOUND"
   | "CONFLICT"
   | "RATE_LIMITED"

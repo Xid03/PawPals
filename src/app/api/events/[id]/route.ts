@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { NextRequest } from "next/server";
 import { prisma } from "@/server/prisma";
-import { requireAuth } from "@/server/auth";
+import { getTokenFromRequest, requireAuth, verifyAuthToken } from "@/server/auth";
 import { ok, handleRouteError, ApiRouteError } from "@/server/responses";
 import { parseJson } from "@/server/route-utils";
 import { eventSchema } from "@/server/validators";
@@ -14,14 +14,32 @@ async function ensureEventOwner(eventId: string, userId: string) {
   return event;
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+async function getOptionalAuthId(request: NextRequest) {
+  const token = getTokenFromRequest(request);
+  if (!token) return null;
+
   try {
+    const auth = await verifyAuthToken(token);
+    return auth.id;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const authId = await getOptionalAuthId(request);
     const event = await prisma.event.findUnique({
       where: { id: params.id },
-      include: { organizer: { select: { id: true, name: true, username: true, avatarUrl: true } }, _count: { select: { rsvps: true, saves: true } } }
+      include: {
+        organizer: { select: { id: true, name: true, username: true, avatarUrl: true } },
+        saves: { where: { userId: authId ?? "" }, select: { userId: true } },
+        _count: { select: { rsvps: true, saves: true } }
+      }
     });
     if (!event) throw new ApiRouteError(404, "NOT_FOUND", "Event not found");
-    return ok({ event });
+    const { saves, ...eventData } = event;
+    return ok({ event: { ...eventData, savedByMe: Boolean(saves.length) } });
   } catch (error) {
     return handleRouteError(error);
   }

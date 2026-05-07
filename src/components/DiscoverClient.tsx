@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Calendar, Heart, MapPin, PawPrint, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { apiFetch, ageLabel, distanceLabel, requireSignedIn, type ApiCat } from "@/lib/api-client";
+import { apiFetch, ageLabel, distanceLabel, requireSignedIn, type ApiCat, type PublicUser } from "@/lib/api-client";
 import discoverCat1 from "../../images/discoverCat1.png";
 import profileIcon from "../../images/profileIcon.png";
 
@@ -41,11 +42,16 @@ const filters: FilterItem[] = [
   { label: "More Filters", icon: SlidersHorizontal }
 ];
 
-export function DiscoverClient() {
-  const [cats, setCats] = useState<DisplayCat[]>([]);
+export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] }) {
+  const [cats, setCats] = useState<DisplayCat[]>(() => initialCats.map(mapCat));
   const [index, setIndex] = useState(0);
   const [filter, setFilter] = useState("Nearby");
   const [message, setMessage] = useState("Playdate-ready cats near you");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userResults, setUserResults] = useState<PublicUser[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -77,7 +83,54 @@ export function DiscoverClient() {
       .catch(() => undefined);
   }, []);
 
-  const cat = useMemo(() => (cats.length ? cats[index % cats.length] : null), [cats, index]);
+  const filteredCats = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    if (!normalized) return cats;
+
+    return cats.filter((cat) =>
+      [cat.name, cat.breed, cat.gender, cat.age, cat.distance].some((value) => value?.toLowerCase().includes(normalized))
+    );
+  }, [cats, searchQuery]);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [searchQuery]);
+
+  const cat = useMemo(() => (filteredCats.length ? filteredCats[index % filteredCats.length] : null), [filteredCats, index]);
+  const normalizedAccountSearch = searchQuery.trim();
+
+  useEffect(() => {
+    let ignore = false;
+
+    if (!normalizedAccountSearch) {
+      setUserResults([]);
+      setIsSearchingUsers(false);
+      return () => {
+        ignore = true;
+      };
+    }
+
+    setIsSearchingUsers(true);
+    apiFetch<PublicUser[]>(`/api/users?q=${encodeURIComponent(normalizedAccountSearch)}&limit=10`)
+      .then((items) => {
+        if (!ignore) setUserResults(items);
+      })
+      .catch(() => {
+        if (!ignore) setUserResults([]);
+      })
+      .finally(() => {
+        if (!ignore) setIsSearchingUsers(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [normalizedAccountSearch]);
+
+  function openSearch() {
+    setShowSearch((current) => !current);
+    window.setTimeout(() => searchInputRef.current?.focus(), 0);
+  }
 
   async function swipe(action: "LIKE" | "SKIP") {
     if (!cat) return;
@@ -106,13 +159,67 @@ export function DiscoverClient() {
         </div>
         <button
           type="button"
-          onClick={() => setMessage("Search is ready. Use filters to narrow PawPals.")}
+          onClick={openSearch}
           className="absolute right-0 top-6 grid h-[58px] w-[58px] place-items-center rounded-full bg-white text-paw-ink shadow-[0_8px_22px_rgba(247,101,137,0.18)] ring-4 ring-paw-blush"
           aria-label="Search PawPals"
         >
           <Search size={27} strokeWidth={2.7} />
         </button>
       </header>
+
+      {showSearch ? (
+        <div className="mb-4 space-y-3">
+          <label className="flex h-12 items-center gap-3 rounded-[18px] bg-white px-4 shadow-soft">
+            <Search size={18} className="shrink-0 text-paw-cocoa" />
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search username, name, breed..."
+              className="min-w-0 flex-1 bg-transparent text-sm font-black text-paw-ink outline-none placeholder:text-paw-cocoa/45"
+            />
+            {searchQuery ? (
+              <button type="button" onClick={() => setSearchQuery("")} className="text-paw-pink" aria-label="Clear PawPals search">
+                <X size={18} />
+              </button>
+            ) : null}
+          </label>
+          {normalizedAccountSearch ? (
+            <section className="rounded-[20px] bg-white/90 p-3 shadow-soft">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-xs font-black uppercase text-paw-cocoa/70">Accounts</h2>
+                {isSearchingUsers ? <span className="text-[11px] font-black text-paw-pink">Searching...</span> : null}
+              </div>
+              {userResults.length ? (
+                <div className="space-y-2">
+                  {userResults.map((user) => (
+                    <Link
+                      key={user.id}
+                      href={`/users/${user.id}`}
+                      className="flex w-full items-center gap-3 rounded-2xl bg-paw-blush/35 p-3 text-left"
+                    >
+                      <img
+                        src={user.avatarUrl || profileIcon.src}
+                        alt={user.username}
+                        className="h-11 w-11 shrink-0 rounded-full object-cover ring-2 ring-white"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-paw-ink">{user.name}</span>
+                        <span className="block truncate text-xs font-bold text-paw-cocoa/70">@{user.username}</span>
+                      </span>
+                      <span className="rounded-full bg-paw-pink px-3 py-1.5 text-[11px] font-black text-white">View</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : !isSearchingUsers ? (
+                <p className="rounded-2xl bg-paw-blush/45 px-4 py-4 text-center text-xs font-black text-paw-cocoa">
+                  No registered accounts found.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="hide-scrollbar mb-5 flex gap-3 overflow-x-auto">
         {filters.map((item) => {
@@ -176,15 +283,23 @@ export function DiscoverClient() {
                   <MapPin size={14} className="fill-white/20" />
                   {cat.distance}
                 </span>
-                <span className="rounded-full bg-black/35 px-3 py-1 font-black">{(index % cats.length) + 1} / {cats.length}</span>
+              <span className="rounded-full bg-black/35 px-3 py-1 font-black">{(index % filteredCats.length) + 1} / {filteredCats.length}</span>
               </div>
             </div>
           </div>
         ) : (
           <div className="rounded-[27px] bg-white/85 p-8 text-center shadow-soft">
             <PawPrint className="mx-auto h-14 w-14 fill-paw-pink/20 text-paw-pink" />
-            <h2 className="mt-4 text-2xl font-black text-paw-ink">No cats yet</h2>
-            <p className="mt-2 text-sm font-bold text-paw-cocoa/70">Uploaded cat profiles will appear here.</p>
+            <h2 className="mt-4 text-2xl font-black text-paw-ink">
+              {searchQuery && userResults.length ? "Accounts found above" : searchQuery ? "No matches found" : "No cats yet"}
+            </h2>
+            <p className="mt-2 text-sm font-bold text-paw-cocoa/70">
+              {searchQuery && userResults.length
+                ? "Tap an account to view their profile."
+                : searchQuery
+                  ? "Try another username, name, breed, or location."
+                  : "Uploaded cat profiles will appear here."}
+            </p>
           </div>
         )}
 
