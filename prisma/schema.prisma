@@ -357,6 +357,7 @@ model Message {
   senderId       String
   type           MessageType  @default(TEXT)
   body           String
+  data           Json?
   createdAt      DateTime     @default(now())
   readAt         DateTime?
 

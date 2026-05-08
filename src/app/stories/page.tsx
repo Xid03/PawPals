@@ -4,12 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, TouchEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Camera, ChevronLeft, ChevronRight, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Send, Sparkles, X } from "lucide-react";
+import { Bookmark, Camera, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import type { DisplayPost } from "@/components/PostCard";
 import { apiFetch, requireSignedIn, type PublicUser } from "@/lib/api-client";
 import { posts as mockPosts } from "@/data/mockData";
+import profileIcon from "../../../images/profileIcon.png";
 
 type ApiStory = {
   id: string;
@@ -17,6 +18,7 @@ type ApiStory = {
   type: "IMAGE" | "VIDEO";
   caption?: string | null;
   createdAt: string;
+  expiresAt: string;
   author?: {
     id: string;
     name: string;
@@ -34,12 +36,23 @@ type StoryItem = {
   ownerKey: string;
   name: string;
   image: string;
+  type: "IMAGE" | "VIDEO";
   avatar: string;
   caption: string;
   likes: number;
   views: number;
+  createdAt: string;
+  expiresAt: string;
   isApiStory: boolean;
 };
+
+function isStoryActive(story: { expiresAt: string }) {
+  return new Date(story.expiresAt).getTime() > Date.now();
+}
+
+function sortStoriesByUploadTime<T extends { createdAt: string }>(stories: T[]) {
+  return [...stories].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
 
 function mapApiStory(story: ApiStory): StoryItem {
   return {
@@ -47,10 +60,13 @@ function mapApiStory(story: ApiStory): StoryItem {
     ownerKey: story.author?.id ?? `api:${story.id}`,
     name: story.author?.name ?? story.author?.username ?? "PawPal",
     image: story.url,
+    type: story.type,
     avatar: story.author?.avatarUrl ?? story.url,
     caption: story.caption ?? "Shared a new story.",
     likes: story._count?.likes ?? 0,
     views: story._count?.views ?? 0,
+    createdAt: story.createdAt,
+    expiresAt: story.expiresAt,
     isApiStory: true
   };
 }
@@ -64,12 +80,18 @@ export default function StoriesPage() {
   const [storyItems, setStoryItems] = useState<StoryItem[]>([]);
   const [visibleStoryCount, setVisibleStoryCount] = useState(4);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
-  const [likedStories, setLikedStories] = useState<Set<string>>(() => new Set());
   const [showAddStory, setShowAddStory] = useState(false);
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyPreview, setStoryPreview] = useState("");
   const [storyCaption, setStoryCaption] = useState("");
   const [isPostingStory, setIsPostingStory] = useState(false);
+  const [storyReplyText, setStoryReplyText] = useState("");
+  const [isSendingStoryReply, setIsSendingStoryReply] = useState(false);
+  const [storyViewers, setStoryViewers] = useState<PublicUser[]>([]);
+  const [showStoryViewers, setShowStoryViewers] = useState(false);
+  const [isLoadingStoryViewers, setIsLoadingStoryViewers] = useState(false);
+  const [storyPendingDelete, setStoryPendingDelete] = useState<StoryItem | null>(null);
+  const [isDeletingStory, setIsDeletingStory] = useState(false);
   const [commentsByPost, setCommentsByPost] = useState<Record<string, string[]>>(() => ({
     [mockPosts[2].id]: ["This is too real.", "Treats solve everything."],
     [mockPosts[1].id]: ["Box castle champion."]
@@ -93,7 +115,7 @@ export default function StoriesPage() {
 
       try {
         const items = await apiFetch<ApiStory[]>("/api/stories?limit=30");
-        const mappedStories = items.map(mapApiStory);
+        const mappedStories = sortStoriesByUploadTime(items.filter(isStoryActive).map(mapApiStory));
         setOwnStoryItems(userId ? mappedStories.filter((story) => story.ownerKey === userId) : []);
         setStoryItems(userId ? mappedStories.filter((story) => story.ownerKey !== userId) : mappedStories);
       } catch {
@@ -108,11 +130,12 @@ export default function StoriesPage() {
   const storyOwners = useMemo(() => {
     const owners = new Map<string, StoryItem>();
     storyItems.forEach((story) => {
-      if (!owners.has(story.ownerKey)) {
+      const existing = owners.get(story.ownerKey);
+      if (!existing || new Date(story.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
         owners.set(story.ownerKey, story);
       }
     });
-    return Array.from(owners.values());
+    return sortStoriesByUploadTime(Array.from(owners.values()));
   }, [storyItems]);
   const visibleStories = useMemo(
     () => storyOwners.slice(0, Math.min(visibleStoryCount, storyOwners.length)),
@@ -127,6 +150,19 @@ export default function StoriesPage() {
   const activeStoryGroupIndex = activeStory
     ? activeStoryGroup.findIndex((story) => story.id === activeStory.id)
     : -1;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setOwnStoryItems((current) => current.filter(isStoryActive));
+      setStoryItems((current) => current.filter(isStoryActive));
+      setActiveStoryIndex((current) => {
+        if (current === null) return null;
+        return allStoryItems[current] && isStoryActive(allStoryItems[current]) ? current : null;
+      });
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, [allStoryItems]);
 
   function selectStoryFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
@@ -177,13 +213,14 @@ export default function StoriesPage() {
         })
       });
       const createdStory = mapApiStory(created.story);
+      if (!isStoryActive(createdStory)) return;
       if (created.story.author) {
         setCurrentUser((existing) => existing ?? created.story.author ?? null);
       }
       if ((currentUser?.id && createdStory.ownerKey === currentUser.id) || created.story.author?.id === createdStory.ownerKey) {
-        setOwnStoryItems((current) => [createdStory, ...current.filter((story) => story.id !== createdStory.id)]);
+        setOwnStoryItems((current) => sortStoriesByUploadTime([...current.filter((story) => story.id !== createdStory.id), createdStory]));
       } else {
-        setStoryItems((current) => [createdStory, ...current.filter((story) => story.id !== createdStory.id)]);
+        setStoryItems((current) => sortStoriesByUploadTime([...current.filter((story) => story.id !== createdStory.id), createdStory]));
       }
       setVisibleStoryCount((current) => Math.max(4, current));
       closeAddStory();
@@ -201,10 +238,15 @@ export default function StoriesPage() {
 
     const story = allStoryItems[index];
     setActiveStoryIndex(index);
-    setOwnStoryItems((current) => current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item)));
-    setStoryItems((current) => current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item)));
-    if (story.isApiStory) {
-      void apiFetch(`/api/stories/${story.id}/view`, { method: "POST" }).catch(() => undefined);
+    if (story.isApiStory && story.ownerKey !== currentUser?.id) {
+      void apiFetch<{ counted: boolean }>(`/api/stories/${story.id}/view`, { method: "POST" })
+        .then((result) => {
+          if (!result.counted) return;
+          setStoryItems((current) =>
+            current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item))
+          );
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -253,39 +295,6 @@ export default function StoriesPage() {
     if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
 
     moveStoryAccount(deltaX < 0 ? 1 : -1);
-  }
-
-  function toggleStoryLike(story: StoryItem) {
-    try {
-      requireSignedIn();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Please log in to like stories.");
-      return;
-    }
-
-    setLikedStories((current) => {
-      const next = new Set(current);
-      const liked = next.has(story.id);
-      if (liked) {
-        next.delete(story.id);
-      } else {
-        next.add(story.id);
-      }
-      setStoryItems((items) =>
-        items.map((item) =>
-          item.id === story.id ? { ...item, likes: Math.max(0, item.likes + (liked ? -1 : 1)) } : item
-        )
-      );
-      setOwnStoryItems((items) =>
-        items.map((item) =>
-          item.id === story.id ? { ...item, likes: Math.max(0, item.likes + (liked ? -1 : 1)) } : item
-        )
-      );
-      return next;
-    });
-    if (story.isApiStory) {
-      void apiFetch(`/api/stories/${story.id}/like`, { method: "POST" }).catch(() => undefined);
-    }
   }
 
   function submitComment(event: FormEvent<HTMLFormElement>) {
@@ -339,6 +348,95 @@ export default function StoriesPage() {
     }
   }
 
+  async function sendStoryReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeStory || !storyReplyText.trim()) return;
+
+    try {
+      requireSignedIn();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Please log in to send messages.");
+      return;
+    }
+
+    if (currentUser?.id && activeStory.ownerKey === currentUser.id) {
+      setStatus("This is your story.");
+      return;
+    }
+
+    setIsSendingStoryReply(true);
+    try {
+      const body = storyReplyText.trim();
+      const { conversation } = await apiFetch<{ conversation: { id: string } }>("/api/conversations", {
+        method: "POST",
+        body: JSON.stringify({ userId: activeStory.ownerKey })
+      });
+      await apiFetch(`/api/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          body,
+          type: "TEXT",
+          data: {
+            storyReply: {
+              storyId: activeStory.id,
+              storyUrl: activeStory.image,
+              storyType: activeStory.type,
+              storyCaption: activeStory.caption,
+              storyOwnerName: activeStory.name
+            }
+          }
+        })
+      });
+      setStoryReplyText("");
+      setStatus("Message sent.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not send message.");
+    } finally {
+      setIsSendingStoryReply(false);
+    }
+  }
+
+  async function openStoryViewers(story: StoryItem) {
+    if (!currentUser?.id || story.ownerKey !== currentUser.id) {
+      setStatus("Only your own story viewers are available.");
+      return;
+    }
+
+    setShowStoryViewers(true);
+    setIsLoadingStoryViewers(true);
+    try {
+      const viewers = await apiFetch<PublicUser[]>(`/api/stories/${story.id}/viewers?limit=50`);
+      setStoryViewers(viewers);
+    } catch (error) {
+      setStoryViewers([]);
+      setStatus(error instanceof Error ? error.message : "Could not load story viewers.");
+    } finally {
+      setIsLoadingStoryViewers(false);
+    }
+  }
+
+  async function deleteStory(story: StoryItem) {
+    if (!currentUser?.id || story.ownerKey !== currentUser.id) {
+      setStatus("You can only delete your own stories.");
+      return;
+    }
+
+    setIsDeletingStory(true);
+    try {
+      await apiFetch(`/api/stories/${story.id}`, { method: "DELETE" });
+      setOwnStoryItems((current) => current.filter((item) => item.id !== story.id));
+      setStoryItems((current) => current.filter((item) => item.id !== story.id));
+      setStoryPendingDelete(null);
+      setShowStoryViewers(false);
+      setActiveStoryIndex(null);
+      setStatus("Story deleted.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete story.");
+    } finally {
+      setIsDeletingStory(false);
+    }
+  }
+
   return (
     <section className="relative min-h-screen overflow-hidden bg-[#fff8ef] pb-28 pt-7">
       <div className="pointer-events-none absolute -bottom-20 -left-16 h-40 w-56 rounded-[48%] bg-paw-lilac/60" />
@@ -364,7 +462,11 @@ export default function StoriesPage() {
             className="flex w-[72px] shrink-0 flex-col items-center text-center"
             onClick={() => (ownStoryItems.length ? openStory(ownStoryItems[0].id) : openAddStory())}
           >
-            <span className="relative grid h-[64px] w-[64px] place-items-center rounded-full bg-gradient-to-br from-paw-lavender to-paw-pink p-[4px] shadow-soft ring-[4px] ring-white">
+            <span
+              className={`relative grid h-[64px] w-[64px] place-items-center rounded-full shadow-soft ring-[4px] ring-white ${
+                ownStoryItems.length ? "bg-gradient-to-br from-paw-lavender to-paw-pink p-[4px]" : "bg-white p-0"
+              }`}
+            >
               {ownStoryItems.length ? (
                 <>
                   <span className="block h-full w-full overflow-hidden rounded-full bg-white">
@@ -418,39 +520,67 @@ export default function StoriesPage() {
 
       <StatusToast message={status} onDismiss={() => setStatus("")} />
       <div className="relative space-y-4 px-4">
-        {[mockPosts[2], mockPosts[1]].map((post, index) => (
-          <article key={post.id} className="relative overflow-hidden rounded-[28px] bg-white/86 p-4 shadow-[0_18px_45px_rgba(122,81,63,0.1)]">
+        {[mockPosts[2], mockPosts[1]].map((post, index) => {
+          const isMeme = index === 0;
+          return (
+          <article
+            key={post.id}
+            className={`relative overflow-hidden rounded-[28px] p-4 shadow-[0_18px_45px_rgba(122,81,63,0.1)] ${
+              isMeme
+                ? "border-2 border-paw-pink/25 bg-gradient-to-br from-white via-[#fff5f8] to-[#fff0d8]"
+                : "bg-white/86"
+            }`}
+          >
+            {isMeme ? (
+              <div className="pointer-events-none absolute -right-7 -top-8 h-24 w-24 rounded-full bg-paw-butter/45" />
+            ) : null}
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <img src={post.avatar} alt={post.user} className="h-10 w-10 rounded-full object-cover ring-[3px] ring-paw-rose/40" />
+                <img
+                  src={post.avatar}
+                  alt={post.user}
+                  className={`h-10 w-10 rounded-full object-cover ring-[3px] ${isMeme ? "ring-paw-butter" : "ring-paw-rose/40"}`}
+                />
                 <div className="min-w-0">
                   <h2 className="truncate text-lg font-black leading-tight text-paw-ink">
                     {post.user} <PawPrint className="inline h-4 w-4 fill-paw-pink/50 text-paw-pink" />
                   </h2>
-                  <p className="text-xs font-bold text-paw-cocoa/65">
-                    {post.time} <span className="text-paw-pink">•</span>
-                  </p>
+                  <div className="mt-1 flex min-w-0 items-center gap-2">
+                    <p className="text-xs font-bold text-paw-cocoa/65">
+                      {post.time} <span className="text-paw-pink">•</span>
+                    </p>
+                    {isMeme ? (
+                      <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-paw-pink px-2 text-[10px] font-black uppercase tracking-wide text-white shadow-soft">
+                        Meme
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <button type="button" onClick={() => openPostOptions(post)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-paw-cocoa" aria-label="Post options">
                 <MoreHorizontal size={22} />
               </button>
             </div>
-            <p className="mb-3 text-base font-black leading-snug text-paw-ink">
+            <p className={`mb-3 text-base font-black leading-snug text-paw-ink ${isMeme ? "rounded-2xl bg-white/55 px-3 py-2" : ""}`}>
               {post.text} <Heart className="inline h-4 w-4 fill-paw-rose text-paw-rose" />
             </p>
             {post.image ? (
-              <div className="relative">
+              <div className={`relative ${isMeme ? "rounded-[24px] bg-white p-2 shadow-[0_12px_28px_rgba(247,101,137,0.12)]" : ""}`}>
                 <img
                   src={post.image}
                   alt=""
-                  className={`w-full rounded-[22px] object-cover ${index === 1 ? "h-[180px]" : "h-[205px]"}`}
+                  className={`w-full object-cover ${isMeme ? "h-[215px] rounded-[18px]" : index === 1 ? "h-[180px] rounded-[22px]" : "h-[205px] rounded-[22px]"}`}
                 />
                 <Sparkles className="absolute bottom-3 left-3 h-6 w-6 fill-paw-butter text-paw-butter drop-shadow" />
                 <Heart className="absolute -right-2 -top-3 h-8 w-8 rotate-[-15deg] fill-paw-rose text-paw-rose" />
+                {isMeme ? (
+                  <span className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white backdrop-blur-sm">
+                    Meme post
+                  </span>
+                ) : null}
               </div>
             ) : null}
-            <div className="mt-3 flex items-center justify-between rounded-[20px] bg-paw-blush/35 px-4 py-2.5 text-paw-ink">
+            <div className={`mt-3 flex items-center justify-between rounded-[20px] px-4 py-2.5 text-paw-ink ${isMeme ? "bg-white/72" : "bg-paw-blush/35"}`}>
               <div className="flex items-center gap-6 text-sm font-black">
                 <button type="button" className="inline-flex items-center gap-2" onClick={() => setStatus("Like updated")}>
                   <Heart size={22} className="fill-paw-pink text-paw-pink" />
@@ -466,7 +596,8 @@ export default function StoriesPage() {
               </button>
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
 
       {showAddStory ? (
@@ -595,53 +726,167 @@ export default function StoriesPage() {
             <button
               type="button"
               onClick={() => moveStory(-1)}
-              className="absolute left-3 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/16 text-white backdrop-blur-sm"
+              className="absolute bottom-24 left-0 top-24 z-10 w-1/2"
               aria-label="Previous story"
-            >
-              <ChevronLeft size={28} strokeWidth={3} />
-            </button>
+            />
             <button
               type="button"
               onClick={() => moveStory(1)}
-              className="absolute right-3 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/16 text-white backdrop-blur-sm"
+              className="absolute bottom-24 right-0 top-24 z-10 w-1/2"
               aria-label="Next story"
-            >
-              <ChevronRight size={28} strokeWidth={3} />
-            </button>
+            />
 
             <div className="absolute bottom-5 left-5 right-5 z-10">
               <div className="mb-4 max-w-[270px]">
                 <p className="text-lg font-black leading-snug drop-shadow">
                   <span className="mr-1.5 align-top text-4xl leading-none text-paw-pink">“</span>
-                  {activeStory.caption} <Heart className="inline h-5 w-5 fill-paw-pink text-paw-pink" />
+                  {activeStory.caption}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleStoryLike(activeStory)}
-                className="mb-4 inline-flex h-[52px] items-center gap-3 rounded-[18px] bg-black/35 px-5 text-xl font-black shadow-soft backdrop-blur-sm"
-              >
-                <Heart size={30} className={`text-paw-pink ${likedStories.has(activeStory.id) ? "fill-paw-pink" : "fill-paw-pink"}`} />
-                {activeStory.likes}
-              </button>
-              <div className="flex items-center gap-3">
-                <button type="button" className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-black/35 text-white backdrop-blur-sm" aria-label="Camera">
-                  <Camera size={24} fill="white" />
-                </button>
-                <input
-                  className="h-12 min-w-0 flex-1 rounded-full border border-white/18 bg-black/30 px-5 text-sm font-bold text-white outline-none backdrop-blur-sm placeholder:text-white/80"
-                  placeholder="Send message..."
-                />
-                <button type="button" className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-black/30 text-white backdrop-blur-sm" aria-label="Send message">
-                  <Send size={24} fill="white" />
-                </button>
-              </div>
+              {currentUser?.id && activeStory.ownerKey === currentUser.id ? (
+                <div className="mt-4 flex w-full items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void openStoryViewers(activeStory)}
+                    className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] bg-black/35 px-3 text-sm font-black shadow-soft backdrop-blur-sm"
+                  >
+                    <span className="truncate">{activeStory.views} viewers</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryPendingDelete(activeStory)}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-black/35 text-white shadow-soft backdrop-blur-sm"
+                    aria-label="Delete story"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveStoryIndex(null);
+                      openAddStory();
+                    }}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-black/40 text-white shadow-soft backdrop-blur-sm"
+                    aria-label="Add story"
+                  >
+                    <Camera size={22} fill="white" />
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={sendStoryReply} className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveStoryIndex(null);
+                      openAddStory();
+                    }}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-black/35 text-white backdrop-blur-sm"
+                    aria-label="Add story"
+                  >
+                    <Camera size={24} fill="white" />
+                  </button>
+                  <input
+                    value={storyReplyText}
+                    onChange={(event) => setStoryReplyText(event.target.value)}
+                    disabled={isSendingStoryReply}
+                    className="h-12 min-w-0 flex-1 rounded-full border border-white/18 bg-black/30 px-5 text-sm font-bold text-white outline-none backdrop-blur-sm placeholder:text-white/80"
+                    placeholder="Send message..."
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSendingStoryReply || !storyReplyText.trim()}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-black/30 text-white backdrop-blur-sm disabled:opacity-55"
+                    aria-label="Send message"
+                  >
+                    <Send size={24} fill="white" />
+                  </button>
+                </form>
+              )}
             </div>
 
             <div className="pointer-events-none absolute bottom-28 right-7 z-10 grid gap-2.5">
               <Heart className="h-6 w-6 fill-paw-pink text-paw-pink" />
               <Heart className="h-6 w-6 fill-paw-rose/75 text-paw-rose/75" />
               <Heart className="h-6 w-6 fill-paw-lavender/55 text-paw-lavender/55" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showStoryViewers ? (
+        <div className="fixed inset-0 z-[80] grid place-items-end bg-paw-ink/35 px-4 pb-5 backdrop-blur-sm">
+          <div className="w-full max-w-[390px] rounded-[28px] border border-paw-peach/70 bg-[#fff8ef] p-5 text-paw-ink shadow-paw">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black">Story viewers</h2>
+                <p className="mt-1 text-xs font-bold text-paw-cocoa/70">Your own account is not shown here.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStoryViewers(false)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-paw-cocoa shadow-soft"
+                aria-label="Close viewers"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {isLoadingStoryViewers ? (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">Loading viewers...</p>
+            ) : storyViewers.length ? (
+              <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+                {storyViewers.map((viewer) => (
+                  <button
+                    key={viewer.id}
+                    type="button"
+                    onClick={() => {
+                      setShowStoryViewers(false);
+                      setActiveStoryIndex(null);
+                      router.push(`/users/${viewer.id}`);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl bg-white/80 p-3 text-left shadow-[0_8px_18px_rgba(122,81,63,0.06)] transition hover:bg-white"
+                  >
+                    <img src={viewer.avatarUrl || profileIcon.src} alt={viewer.username} className="h-12 w-12 rounded-full object-cover" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-paw-ink">{viewer.name}</span>
+                      <span className="block truncate text-xs font-bold text-paw-cocoa/70">@{viewer.username}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">No viewers yet.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {storyPendingDelete ? (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-paw-ink/40 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-paw-peach/70 bg-[#fff8ef] p-5 text-center shadow-paw">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-paw-blush text-paw-pink">
+              <Trash2 size={24} />
+            </span>
+            <h2 className="mt-4 text-xl font-black text-paw-ink">Delete story?</h2>
+            <p className="mx-auto mt-2 max-w-[260px] text-sm font-bold leading-relaxed text-paw-cocoa/70">
+              This story will be permanently removed from your profile and the stories viewer.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setStoryPendingDelete(null)}
+                disabled={isDeletingStory}
+                className="h-12 rounded-2xl bg-white text-sm font-black text-paw-cocoa shadow-soft disabled:opacity-70"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteStory(storyPendingDelete)}
+                disabled={isDeletingStory}
+                className="h-12 rounded-2xl bg-paw-pink text-sm font-black text-white shadow-soft disabled:opacity-70"
+              >
+                {isDeletingStory ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
         </div>

@@ -109,6 +109,15 @@ export type ApiMessage = {
   id: string;
   body: string;
   type: string;
+  data?: {
+    storyReply?: {
+      storyId: string;
+      storyUrl: string;
+      storyType?: "IMAGE" | "VIDEO";
+      storyCaption?: string | null;
+      storyOwnerName?: string;
+    };
+  } | null;
   senderId: string;
   createdAt: string;
   sender?: PublicUser;

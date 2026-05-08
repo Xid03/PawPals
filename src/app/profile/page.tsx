@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, Lock, LogOut, MapPin, MessageCircle, PawPrint, Settings, Sparkles, UserRound, Users, X } from "lucide-react";
+import { AtSign, Bell, Bookmark, CalendarCheck, Camera, ChevronRight, Edit3, FileText, Heart, ImageIcon, ImagePlus, Lock, LogOut, MapPin, MessageCircle, PawPrint, Plus, Settings, Sparkles, UserRound, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { useCurrentUser } from "@/components/CurrentUserProvider";
 import { StatusToast } from "@/components/StatusToast";
@@ -35,8 +35,20 @@ type ProfileStory = {
   type: "IMAGE" | "VIDEO";
   caption?: string | null;
   createdAt: string;
+  expiresAt: string;
   author?: PublicUser;
+  _count?: {
+    views: number;
+  };
 };
+
+function isStoryActive(story: { expiresAt: string }) {
+  return new Date(story.expiresAt).getTime() > Date.now();
+}
+
+function sortStoriesByUploadTime<T extends { createdAt: string }>(stories: T[]) {
+  return [...stories].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
 
 const profileActions = [
   { label: "My PawPals", panel: "followers" as const, icon: Users, bubble: "bg-[#eee4ff] text-paw-lavender" },
@@ -71,6 +83,14 @@ export default function UserProfilePage() {
   const [stories, setStories] = useState<ProfileStory[]>([]);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [isLoadingStories, setIsLoadingStories] = useState(false);
+  const [showAddStory, setShowAddStory] = useState(false);
+  const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [storyPreview, setStoryPreview] = useState("");
+  const [storyCaption, setStoryCaption] = useState("");
+  const [isPostingStory, setIsPostingStory] = useState(false);
+  const [storyViewers, setStoryViewers] = useState<PublicUser[]>([]);
+  const [showStoryViewers, setShowStoryViewers] = useState(false);
+  const [isLoadingStoryViewers, setIsLoadingStoryViewers] = useState(false);
 
   useEffect(() => {
     if (isGuestMode()) {
@@ -135,7 +155,7 @@ export default function UserProfilePage() {
     if (postsResult.status === "fulfilled") setProfilePosts(postsResult.value);
     if (followersResult.status === "fulfilled") setFollowers(followersResult.value);
     if (followingResult.status === "fulfilled") setFollowing(followingResult.value);
-    if (storiesResult.status === "fulfilled") setStories(storiesResult.value);
+    if (storiesResult.status === "fulfilled") setStories(sortStoriesByUploadTime(storiesResult.value.filter(isStoryActive)));
   }
 
   async function loadFollowRequests() {
@@ -180,8 +200,9 @@ export default function UserProfilePage() {
     setIsLoadingStories(true);
     try {
       const storiesData = await apiFetch<ProfileStory[]>("/api/stories?mine=true&limit=50");
-      setStories(storiesData);
-      return storiesData;
+      const activeStories = sortStoriesByUploadTime(storiesData.filter(isStoryActive));
+      setStories(activeStories);
+      return activeStories;
     } finally {
       setIsLoadingStories(false);
     }
@@ -221,6 +242,81 @@ export default function UserProfilePage() {
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
   }
+
+  function chooseStoryFile(file: File | null | undefined) {
+    if (storyPreview.startsWith("blob:")) URL.revokeObjectURL(storyPreview);
+    setStoryFile(file ?? null);
+    setStoryPreview(file ? URL.createObjectURL(file) : "");
+  }
+
+  function closeAddStory() {
+    if (storyPreview.startsWith("blob:")) URL.revokeObjectURL(storyPreview);
+    setStoryFile(null);
+    setStoryPreview("");
+    setStoryCaption("");
+    setShowAddStory(false);
+  }
+
+  async function postStory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!storyFile || !storyPreview) {
+      setStatus("Choose a photo first");
+      return;
+    }
+
+    setIsPostingStory(true);
+    try {
+      requireSignedIn();
+      const uploadForm = new FormData();
+      uploadForm.append("file", storyFile);
+      uploadForm.append("folder", "stories");
+      const upload = await apiFetch<{ url: string }>("/api/uploads", {
+        method: "POST",
+        body: uploadForm
+      });
+      const created = await apiFetch<{ story: ProfileStory }>("/api/stories", {
+        method: "POST",
+        body: JSON.stringify({
+          url: upload.url,
+          type: "IMAGE",
+          caption: storyCaption.trim() || undefined
+        })
+      });
+      setStories((current) => sortStoriesByUploadTime([...current.filter((story) => story.id !== created.story.id), created.story]));
+      closeAddStory();
+      setStatus("Story posted.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not post story");
+    } finally {
+      setIsPostingStory(false);
+    }
+  }
+
+  async function openStoryViewers(story: ProfileStory) {
+    setShowStoryViewers(true);
+    setIsLoadingStoryViewers(true);
+    try {
+      const viewers = await apiFetch<PublicUser[]>(`/api/stories/${story.id}/viewers?limit=50`);
+      setStoryViewers(viewers);
+    } catch (error) {
+      setStoryViewers([]);
+      setStatus(error instanceof Error ? error.message : "Could not load story viewers.");
+    } finally {
+      setIsLoadingStoryViewers(false);
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setStories((current) => current.filter(isStoryActive));
+      setActiveStoryIndex((current) => {
+        if (current === null) return null;
+        return stories[current] && isStoryActive(stories[current]) ? current : null;
+      });
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, [stories]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -609,14 +705,132 @@ export default function UserProfilePage() {
               ) : (
                 <img src={activeStory.url} alt={activeStory.caption || "Story"} className="h-full w-full object-contain" />
               )}
-              <button type="button" onClick={showPreviousStory} className="absolute inset-y-0 left-0 w-1/3" aria-label="Previous story" />
-              <button type="button" onClick={showNextStory} className="absolute inset-y-0 right-0 w-1/3" aria-label="Next story" />
+              <button type="button" onClick={showPreviousStory} className="absolute inset-y-0 left-0 w-1/2" aria-label="Previous story" />
+              <button type="button" onClick={showNextStory} className="absolute inset-y-0 right-0 w-1/2" aria-label="Next story" />
               {activeStory.caption ? (
                 <p className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/45 px-4 py-3 text-center text-sm font-bold leading-relaxed backdrop-blur-sm">
                   {activeStory.caption}
                 </p>
               ) : null}
             </div>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={() => void openStoryViewers(activeStory)}
+                className="rounded-xl px-2 py-1 text-left text-sm font-black text-white transition hover:bg-white/10"
+              >
+                {activeStory._count?.views ?? 0} {(activeStory._count?.views ?? 0) === 1 ? "view" : "views"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStoryIndex(null);
+                  setShowAddStory(true);
+                }}
+                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-paw-cocoa shadow-soft"
+              >
+                <Camera size={18} className="text-paw-pink" />
+                Add Story
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAddStory ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-paw-ink/35 px-5 backdrop-blur-sm">
+          <form onSubmit={postStory} className="w-full max-w-[380px] rounded-[28px] border border-white/80 bg-[#fff8ef] p-6 shadow-paw">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-[34px] font-black leading-none text-paw-ink">Add Story</h2>
+                <p className="mt-3 text-lg font-bold leading-none text-paw-cocoa/80">Share a moment with your friends</p>
+              </div>
+              <button type="button" onClick={closeAddStory} className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/90 text-paw-ink shadow-soft" aria-label="Close add story">
+                <X size={30} strokeWidth={3} />
+              </button>
+            </div>
+            <label className="mb-5 grid min-h-[230px] cursor-pointer place-items-center overflow-hidden rounded-[28px] border-[2px] border-dashed border-paw-rose/65 bg-[#fffaf5] p-5 text-center shadow-[0_12px_34px_rgba(122,81,63,0.08)]">
+              {storyPreview ? (
+                <img src={storyPreview} alt="" className="h-full max-h-[240px] w-full rounded-[22px] object-cover" />
+              ) : (
+                <span className="grid place-items-center">
+                  <span className="relative mb-5 grid h-24 w-24 place-items-center rounded-full bg-paw-blush text-paw-pink shadow-soft">
+                    <ImageIcon size={48} strokeWidth={2.5} />
+                    <span className="absolute right-1 top-2 grid h-11 w-11 place-items-center rounded-full bg-paw-pink text-white ring-[5px] ring-white">
+                      <Plus size={27} strokeWidth={3} />
+                    </span>
+                  </span>
+                  <span className="text-[22px] font-black leading-tight text-paw-ink">Choose story photo</span>
+                  <span className="mt-3 text-base font-bold text-paw-cocoa/72">Add a photo or video to share</span>
+                  <span className="mt-5 inline-flex h-12 items-center gap-3 rounded-full bg-white px-6 text-base font-black text-paw-pink shadow-soft">
+                    <ImagePlus size={23} />
+                    Select from gallery
+                  </span>
+                </span>
+              )}
+              <input type="file" accept="image/*" onChange={(event) => chooseStoryFile(event.target.files?.[0])} className="hidden" />
+            </label>
+            <label className="mb-4 block text-base font-black text-paw-cocoa">
+              Write a caption
+              <textarea
+                value={storyCaption}
+                onChange={(event) => setStoryCaption(event.target.value)}
+                maxLength={200}
+                className="mt-2 min-h-[92px] w-full resize-none rounded-[22px] border border-paw-cocoa/12 bg-white px-5 py-4 text-base font-bold text-paw-ink outline-none"
+                placeholder="What's on your mind?"
+              />
+            </label>
+            <button type="submit" disabled={isPostingStory} className="mt-2 h-16 w-full rounded-[22px] bg-gradient-to-r from-paw-rose to-paw-pink text-xl font-black text-white shadow-soft disabled:opacity-70">
+              {isPostingStory ? "Posting..." : "Post Story"}
+              <Sparkles className="ml-3 inline h-6 w-6 fill-white text-white" />
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {showStoryViewers ? (
+        <div className="fixed inset-0 z-[90] grid place-items-end bg-paw-ink/35 px-4 pb-5 backdrop-blur-sm">
+          <div className="w-full max-w-[390px] rounded-[28px] border border-paw-peach/70 bg-[#fff8ef] p-5 text-paw-ink shadow-paw">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black">Story viewers</h2>
+                <p className="mt-1 text-xs font-bold text-paw-cocoa/70">Your own account is not shown here.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStoryViewers(false)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-paw-cocoa shadow-soft"
+                aria-label="Close viewers"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {isLoadingStoryViewers ? (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">Loading viewers...</p>
+            ) : storyViewers.length ? (
+              <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+                {storyViewers.map((viewer) => (
+                  <button
+                    key={viewer.id}
+                    type="button"
+                    onClick={() => {
+                      setShowStoryViewers(false);
+                      setActiveStoryIndex(null);
+                      router.push(`/users/${viewer.id}`);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl bg-white/80 p-3 text-left shadow-[0_8px_18px_rgba(122,81,63,0.06)] transition hover:bg-white"
+                  >
+                    <img src={viewer.avatarUrl || profileIcon.src} alt={viewer.username} className="h-12 w-12 rounded-full object-cover" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-paw-ink">{viewer.name}</span>
+                      <span className="block truncate text-xs font-bold text-paw-cocoa/70">@{viewer.username}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm font-black text-paw-cocoa">No viewers yet.</p>
+            )}
           </div>
         </div>
       ) : null}

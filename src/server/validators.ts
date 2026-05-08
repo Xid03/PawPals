@@ -75,7 +75,20 @@ export const conversationSchema = z.object({
 
 export const messageSchema = z.object({
   body: z.string().min(1).max(2000),
-  type: z.enum(["TEXT", "IMAGE", "STICKER"]).default("TEXT")
+  type: z.enum(["TEXT", "IMAGE", "STICKER"]).default("TEXT"),
+  data: z
+    .object({
+      storyReply: z
+        .object({
+          storyId: z.string().min(1),
+          storyUrl: z.string().url().or(z.string().startsWith("/")),
+          storyType: z.enum(["IMAGE", "VIDEO"]).default("IMAGE"),
+          storyCaption: z.string().max(280).nullable().optional(),
+          storyOwnerName: z.string().max(80).optional()
+        })
+        .optional()
+    })
+    .optional()
 });
 
 export const eventSchema = z.object({

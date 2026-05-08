@@ -20,7 +20,10 @@ type DisplayMessage = {
   time: string;
   date?: string;
   imageUrl?: string;
+  storyReply?: NonNullable<ApiMessage["data"]>["storyReply"];
 };
+
+type StoryReplyPreview = NonNullable<ApiMessage["data"]>["storyReply"];
 
 type ChatThread = {
   id: string;
@@ -138,6 +141,7 @@ export function ChatClient({
   const [showNotifications, setShowNotifications] = useState(false);
   const [menuThread, setMenuThread] = useState<ChatThread | null>(null);
   const [isDeletingThread, setIsDeletingThread] = useState(false);
+  const [activeStoryReply, setActiveStoryReply] = useState<StoryReplyPreview | null>(null);
   const currentUserId = initialCurrentUserId ?? currentUser?.id ?? decodeCurrentUserId();
 
   useEffect(() => {
@@ -155,12 +159,17 @@ export function ChatClient({
       const otherParticipant =
         item.participants.find((participant) => participant.user.id !== currentUserId)?.user ?? item.participants[0]?.user;
       const latestMessage = item.messages?.[0];
+      const latestStoryReply = latestMessage?.data?.storyReply;
       return {
         id: item.id,
         name: otherParticipant?.name ?? "PawPal",
         subtitle: otherParticipant?.username ? `@${otherParticipant.username}` : "Conversation",
         avatar: fallbackAvatar(otherParticipant),
-        lastMessage: latestMessage?.type === "IMAGE" ? "Image attachment" : latestMessage?.body ?? "Start chatting",
+        lastMessage: latestStoryReply
+          ? "Replied to your story"
+          : latestMessage?.type === "IMAGE"
+            ? "Image attachment"
+            : latestMessage?.body ?? "Start chatting",
         time: latestMessage ? formatMessageTime(latestMessage.createdAt) : "",
         unreadCount: item.unreadCount ?? 0,
         isOnline: otherParticipant?.isOnline === true,
@@ -197,7 +206,8 @@ export function ChatClient({
       text: message.body,
       time: formatMessageTime(message.createdAt),
       date: message.createdAt,
-      imageUrl: message.type === "IMAGE" ? message.body : undefined
+      imageUrl: message.type === "IMAGE" ? message.body : undefined,
+      storyReply: message.data?.storyReply
     }));
   }, [currentUserId, messages, selectedThread]);
 
@@ -677,6 +687,33 @@ export function ChatClient({
                     className="mb-3 max-h-44 w-full rounded-3xl object-cover"
                   />
                 ) : null}
+                {message.storyReply ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveStoryReply(message.storyReply ?? null)}
+                    className="mb-3 w-full overflow-hidden rounded-2xl border border-paw-pink/15 bg-white/70 text-left transition hover:bg-white"
+                    aria-label="Open original story"
+                  >
+                    <div className="flex gap-3 p-2.5">
+                      <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl bg-paw-blush">
+                        {message.storyReply.storyType === "VIDEO" ? (
+                          <video src={message.storyReply.storyUrl} className="h-full w-full object-cover" muted />
+                        ) : (
+                          <img src={message.storyReply.storyUrl} alt="Story reply" className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-wide text-paw-pink">Story reply</p>
+                        <p className="mt-1 truncate text-xs font-bold text-paw-cocoa/70">
+                          {message.storyReply.storyOwnerName ? `${message.storyReply.storyOwnerName}'s story` : "Original story"}
+                        </p>
+                        {message.storyReply.storyCaption ? (
+                          <p className="mt-1 line-clamp-2 text-xs font-bold leading-snug text-paw-ink">{message.storyReply.storyCaption}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                ) : null}
                 <p className="text-base font-bold leading-relaxed text-paw-ink">{message.imageUrl ? "Image attachment" : message.text}</p>
                 <p className={`mt-2 text-right text-xs font-bold ${message.from === "me" ? "text-paw-cocoa/60" : "text-paw-pink/70"}`}>
                   {message.time}
@@ -825,6 +862,40 @@ export function ChatClient({
               Done
               <Heart className="absolute right-6 top-3.5 h-4 w-4 fill-white/30 text-white/30" />
             </button>
+          </div>
+        </div>
+      ) : null}
+      {activeStoryReply ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-paw-ink/85 px-5 py-8 text-white backdrop-blur-sm">
+          <div className="relative flex h-[84vh] max-h-[690px] w-full max-w-[360px] flex-col overflow-hidden rounded-[24px] bg-black shadow-[0_20px_48px_rgba(10,35,60,0.42)]">
+            <div className="flex items-center justify-between gap-3 bg-black/60 px-4 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-black uppercase tracking-wide text-paw-pink">Story reply</p>
+                <p className="truncate text-base font-black">
+                  {activeStoryReply.storyOwnerName ? `${activeStoryReply.storyOwnerName}'s story` : "Original story"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveStoryReply(null)}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/14 text-white shadow-soft"
+                aria-label="Close story"
+              >
+                <X size={24} strokeWidth={3} />
+              </button>
+            </div>
+            <div className="relative min-h-0 flex-1 bg-black">
+              {activeStoryReply.storyType === "VIDEO" ? (
+                <video src={activeStoryReply.storyUrl} className="h-full w-full object-contain" controls autoPlay />
+              ) : (
+                <img src={activeStoryReply.storyUrl} alt="Original story" className="h-full w-full object-contain" />
+              )}
+              {activeStoryReply.storyCaption ? (
+                <p className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold leading-relaxed backdrop-blur-sm">
+                  {activeStoryReply.storyCaption}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/prisma";
 import { requireAuth } from "@/server/auth";
 import { rateLimit } from "@/server/rate-limit";
@@ -45,7 +46,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       throw new ApiRouteError(403, "PRIVATE_ACCOUNT", "This account is private and cannot receive messages");
     }
     const message = await prisma.message.create({
-      data: { conversationId: params.id, senderId: auth.id, body: input.body, type: input.type }
+      data: {
+        conversationId: params.id,
+        senderId: auth.id,
+        body: input.body,
+        type: input.type,
+        data: input.data as Prisma.InputJsonValue | undefined
+      }
     });
     await prisma.conversation.update({ where: { id: params.id }, data: { updatedAt: new Date() } });
     await prisma.notification.createMany({
