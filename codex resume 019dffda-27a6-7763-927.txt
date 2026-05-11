@@ -8,3 +8,5 @@ DIRECT_URL="postgresql://neondb_owner:npg_zbOgjJyn2ku7@ep-proud-sunset-aourslth.
   CLOUDINARY_CLOUD_NAME=dehhxlun2
   CLOUDINARY_API_KEY=278746116854223
   CLOUDINARY_API_SECRET=40Cgjys7fw73cceH1umsCIq9HQ8
+
+ npm run vercel-build
