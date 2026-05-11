@@ -54,12 +54,20 @@ export async function GET(request: NextRequest) {
       include: {
         author: { select: { id: true, name: true, username: true, avatarUrl: true, isPrivate: true } },
         images: true,
+        likes: authId ? { where: { userId: authId }, select: { id: true } } : false,
         saves: authId ? { where: { userId: authId }, select: { id: true } } : false,
         _count: { select: { likes: true, comments: true, saves: true } }
       },
       orderBy: { createdAt: "desc" }
     });
-    return paginated(posts.map((post) => ({ ...post, savedByMe: "saves" in post && Array.isArray(post.saves) ? post.saves.length > 0 : false })), page);
+    return paginated(
+      posts.map((post) => ({
+        ...post,
+        likedByMe: "likes" in post && Array.isArray(post.likes) ? post.likes.length > 0 : false,
+        savedByMe: "saves" in post && Array.isArray(post.saves) ? post.saves.length > 0 : false
+      })),
+      page
+    );
   } catch (error) {
     return handleRouteError(error);
   }

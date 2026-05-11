@@ -32,18 +32,22 @@ export async function GET(request: NextRequest) {
           .filter((id): id is string => typeof id === "string")
       )
     );
-    const [requesters, pendingFollowRequests] = requesterIds.length
+    const [requesters, followRequests, acceptedFollows] = requesterIds.length
       ? await Promise.all([
           prisma.user.findMany({
             where: { id: { in: requesterIds } },
             select: { id: true, name: true, username: true, avatarUrl: true }
           }),
           prisma.followRequest.findMany({
-            where: { targetId: auth.id, requesterId: { in: requesterIds }, status: "PENDING" },
-            select: { id: true, requesterId: true }
+            where: { targetId: auth.id, requesterId: { in: requesterIds } },
+            select: { id: true, requesterId: true, status: true }
+          }),
+          prisma.follow.findMany({
+            where: { followingId: auth.id, followerId: { in: requesterIds } },
+            select: { followerId: true }
           })
         ])
-      : [[], []];
+      : [[], [], []];
     const followerIds = Array.from(
       new Set(
         notifications
@@ -65,7 +69,8 @@ export async function GET(request: NextRequest) {
         ])
       : [[], []];
     const requesterById = new Map(requesters.map((user) => [user.id, user]));
-    const pendingRequestByRequesterId = new Map(pendingFollowRequests.map((request) => [request.requesterId, request]));
+    const requestByRequesterId = new Map(followRequests.map((request) => [request.requesterId, request]));
+    const acceptedRequesterIds = new Set(acceptedFollows.map((follow) => follow.followerId));
     const followedBackUserIds = new Set(followBacks.map((follow) => follow.followingId));
     const requestedFollowBackUserIds = new Set(pendingFollowBackRequests.map((request) => request.targetId));
     const enrichedNotifications = notifications.map((notification) => {
@@ -93,18 +98,24 @@ export async function GET(request: NextRequest) {
       const data = jsonObject(notification.data);
       const requesterId = typeof data.requesterId === "string" ? data.requesterId : "";
       const requester = requesterById.get(requesterId);
-      const pendingRequest = pendingRequestByRequesterId.get(requesterId);
+      const followRequest = requestByRequesterId.get(requesterId);
       const requesterUsername =
         typeof data.requesterUsername === "string" ? data.requesterUsername : requester?.username;
       const requesterName = typeof data.requesterName === "string" ? data.requesterName : requester?.name;
       const requesterLabel = requesterUsername ? `@${requesterUsername}` : requesterName ?? "Someone";
+      const followRequestStatus = acceptedRequesterIds.has(requesterId) || followRequest?.status === "APPROVED"
+        ? "following"
+        : followRequest?.status === "PENDING"
+          ? "pending"
+          : "unavailable";
 
       return {
         ...notification,
         body: `${requesterLabel} requested to follow your private account.`,
         data: {
           ...data,
-          followRequestId: typeof data.followRequestId === "string" ? data.followRequestId : pendingRequest?.id ?? null,
+          followRequestId: typeof data.followRequestId === "string" ? data.followRequestId : followRequest?.id ?? null,
+          followRequestStatus,
           requesterUsername: requesterUsername ?? null,
           requesterName: requesterName ?? null
         },

@@ -2,18 +2,46 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Calendar, Heart, MapPin, PawPrint, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Heart, MapPin, PawPrint, Plus, Search, Sparkles, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { apiFetch, ageLabel, distanceLabel, requireSignedIn, type ApiCat, type PublicUser } from "@/lib/api-client";
-import discoverCat1 from "../../images/discoverCat1.png";
+import { apiFetch, ageLabel, distanceLabel, requireSignedIn, type ApiCat } from "@/lib/api-client";
 import profileIcon from "../../images/profileIcon.png";
+
+const NEARBY_RADIUS_KM = 10;
+const PAWPAL_RESULT_LIMIT = 50;
+const malaysiaStates = [
+  "Johor",
+  "Kedah",
+  "Kelantan",
+  "Melaka",
+  "Negeri Sembilan",
+  "Pahang",
+  "Penang",
+  "Perak",
+  "Perlis",
+  "Sabah",
+  "Sarawak",
+  "Selangor",
+  "Terengganu",
+  "Kuala Lumpur",
+  "Labuan",
+  "Putrajaya"
+];
 
 type DisplayCat = {
   id: string;
   name: string;
+  ageMonths: number;
   age: string;
   breed: string;
   gender?: string;
+  city?: string | null;
+  description?: string | null;
+  ownerName?: string;
+  ownerUsername?: string;
+  lookingFor: string[];
+  distanceKm?: number | null;
   distance: string;
   image: string;
 };
@@ -22,7 +50,14 @@ function mapCat(cat: ApiCat): DisplayCat {
   return {
     id: cat.id,
     name: cat.name,
+    ageMonths: cat.ageMonths,
     gender: cat.gender,
+    city: cat.city,
+    description: cat.description,
+    ownerName: cat.owner?.name,
+    ownerUsername: cat.owner?.username,
+    lookingFor: cat.lookingFor ?? [],
+    distanceKm: cat.distanceKm ?? null,
     breed: cat.breed,
     age: ageLabel(cat.ageMonths),
     distance: distanceLabel(cat),
@@ -36,114 +71,179 @@ type FilterItem = {
 };
 
 const filters: FilterItem[] = [
-  { label: "Nearby", icon: MapPin },
-  { label: "Age", icon: Calendar },
-  { label: "Gender", icon: PawPrint },
-  { label: "More Filters", icon: SlidersHorizontal }
+  { label: "All", icon: PawPrint },
+  { label: "Nearby", icon: MapPin }
 ];
 
 export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] }) {
+  const router = useRouter();
   const [cats, setCats] = useState<DisplayCat[]>(() => initialCats.map(mapCat));
   const [index, setIndex] = useState(0);
-  const [filter, setFilter] = useState("Nearby");
+  const [filter, setFilter] = useState("All");
+  const [selectedState, setSelectedState] = useState("");
+  const [showStatePicker, setShowStatePicker] = useState(false);
   const [message, setMessage] = useState("Playdate-ready cats near you");
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [userResults, setUserResults] = useState<PublicUser[]>([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [likedCatIds, setLikedCatIds] = useState<Set<string>>(() => new Set());
+  const [skippedCatIds, setSkippedCatIds] = useState<Set<string>>(() => new Set());
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const lat = searchParams.get("lat");
-    const lng = searchParams.get("lng");
-    const savedLocation = window.localStorage.getItem("pawpals_location");
-    let query = "limit=20";
-
-    if (lat && lng) {
-      query = `lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radiusKm=50&limit=20`;
-      setMessage("Using your current location");
-    } else if (savedLocation) {
-      try {
-        const location = JSON.parse(savedLocation) as { lat: number; lng: number };
-        query = `lat=${encodeURIComponent(location.lat)}&lng=${encodeURIComponent(location.lng)}&radiusKm=50&limit=20`;
-        setMessage("Using your saved location");
-      } catch {
-        window.localStorage.removeItem("pawpals_location");
+  async function loadCats(query: string, nextMessage?: string, emptyMessage?: string) {
+    try {
+      const items = await apiFetch<ApiCat[]>(`/api/cats/nearby?${query}`);
+      setCats(items.map(mapCat));
+      setIndex(0);
+      const exactNearby = items.some((item) => typeof item.distanceKm === "number" && item.distanceKm <= NEARBY_RADIUS_KM);
+      if (!items.length) {
+        setMessage(emptyMessage ?? (query.includes("strictRadius=true") ? "No PawPal profiles found within 10 km" : "No cat profiles uploaded yet"));
+        return;
       }
+
+      setMessage(nextMessage ?? (exactNearby ? "Showing PawPals within 10 km" : "Showing uploaded PawPals"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load PawPals right now.");
+    }
+  }
+
+  useEffect(() => {
+    function resetToAll() {
+      setFilter("All");
+      setSelectedState("");
+      setShowStatePicker(false);
+      setShowSearch(false);
+      setSearchQuery("");
+      setSkippedCatIds(new Set());
+      setIndex(0);
+      void loadCats(`limit=${PAWPAL_RESULT_LIMIT}`, "Showing all PawPal profiles.");
     }
 
-    apiFetch<ApiCat[]>(`/api/cats/nearby?${query}`)
-      .then((items) => {
-        setCats(items.map(mapCat));
-        setIndex(0);
-        const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
-        setMessage(items.length ? (exactNearby ? "Nearest PawPals are sorted by distance" : "No close cats yet, showing nearest PawPals") : "No cat profiles uploaded yet");
-      })
-      .catch(() => undefined);
+    resetToAll();
+    window.addEventListener("pageshow", resetToAll);
+    return () => window.removeEventListener("pageshow", resetToAll);
   }, []);
 
   const filteredCats = useMemo(() => {
     const normalized = searchQuery.trim().toLowerCase();
-    if (!normalized) return cats;
-
-    return cats.filter((cat) =>
-      [cat.name, cat.breed, cat.gender, cat.age, cat.distance].some((value) => value?.toLowerCase().includes(normalized))
-    );
-  }, [cats, searchQuery]);
+    return cats.filter((cat) => {
+      const matchesSearch =
+        !normalized ||
+        [
+          cat.name,
+          cat.breed,
+          cat.city ?? "",
+          cat.description ?? "",
+          ...cat.lookingFor
+        ].some((value) => value?.toLowerCase().includes(normalized));
+      return matchesSearch && !skippedCatIds.has(cat.id);
+    });
+  }, [cats, searchQuery, skippedCatIds]);
 
   useEffect(() => {
     setIndex(0);
   }, [searchQuery]);
 
   const cat = useMemo(() => (filteredCats.length ? filteredCats[index % filteredCats.length] : null), [filteredCats, index]);
-  const normalizedAccountSearch = searchQuery.trim();
-
-  useEffect(() => {
-    let ignore = false;
-
-    if (!normalizedAccountSearch) {
-      setUserResults([]);
-      setIsSearchingUsers(false);
-      return () => {
-        ignore = true;
-      };
-    }
-
-    setIsSearchingUsers(true);
-    apiFetch<PublicUser[]>(`/api/users?q=${encodeURIComponent(normalizedAccountSearch)}&limit=10`)
-      .then((items) => {
-        if (!ignore) setUserResults(items);
-      })
-      .catch(() => {
-        if (!ignore) setUserResults([]);
-      })
-      .finally(() => {
-        if (!ignore) setIsSearchingUsers(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [normalizedAccountSearch]);
 
   function openSearch() {
     setShowSearch((current) => !current);
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
   }
 
+  function applyFilter(label: string) {
+    setFilter(label);
+    if (label === "All") {
+      setSelectedState("");
+      setShowStatePicker(false);
+      setShowSearch(false);
+      setSearchQuery("");
+      setSkippedCatIds(new Set());
+      setIndex(0);
+      void loadCats(`limit=${PAWPAL_RESULT_LIMIT}`, "Showing all PawPal profiles.");
+      return;
+    }
+
+    if (label === "Nearby") {
+      setSelectedState("");
+      setShowStatePicker(false);
+      if (!navigator.geolocation) {
+        void loadCats(`limit=${PAWPAL_RESULT_LIMIT}`, "Location is unavailable, showing latest PawPals.");
+        return;
+      }
+      setMessage("Finding PawPals near you...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          window.localStorage.setItem("pawpals_location", JSON.stringify({ lat: latitude, lng: longitude }));
+          void loadCats(
+            `lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}&radiusKm=${NEARBY_RADIUS_KM}&strictRadius=true&limit=${PAWPAL_RESULT_LIMIT}`,
+            "Showing PawPals within 10 km"
+          );
+        },
+        () => void loadCats(`limit=${PAWPAL_RESULT_LIMIT}`, "Location permission was not granted, showing latest PawPals."),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+      return;
+    }
+  }
+
+  function applyStateFilter(state: string) {
+    setFilter("State");
+    setSelectedState(state);
+    setShowStatePicker(false);
+    setShowSearch(false);
+    setSearchQuery("");
+    setSkippedCatIds(new Set());
+    setIndex(0);
+    void loadCats(
+      `city=${encodeURIComponent(state)}&limit=${PAWPAL_RESULT_LIMIT}`,
+      `Showing PawPals in ${state}.`,
+      `No PawPal profiles found in ${state}.`
+    );
+  }
+
+  async function openMatches() {
+    try {
+      requireSignedIn();
+      const matches = await apiFetch<unknown[]>("/api/discover/matches?limit=20");
+      setMatchCount(matches.length);
+      setMessage(matches.length ? `${matches.length} PawPal match${matches.length === 1 ? "" : "es"} found.` : "No PawPal matches yet. Keep swiping.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load matches.");
+    }
+  }
+
   async function swipe(action: "LIKE" | "SKIP") {
-    if (!cat) return;
+    if (!cat || isSwiping) return;
+    setIsSwiping(true);
     try {
       requireSignedIn();
       const result = await apiFetch<{ match: unknown | null }>("/api/discover/swipes", {
         method: "POST",
         body: JSON.stringify({ catId: cat.id, action })
       });
+      if (action === "LIKE") {
+        setLikedCatIds((current) => new Set(current).add(cat.id));
+      } else {
+        setSkippedCatIds((current) => new Set(current).add(cat.id));
+      }
       setMessage(result.match ? "It's a match! Send a meow." : action === "LIKE" ? "Paw sent!" : "Skipped");
       setIndex((current) => current + 1);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Swipe saved locally");
+      const errorMessage = error instanceof Error ? error.message : "Swipe saved locally";
+      if (errorMessage.toLowerCase().includes("already swiped")) {
+        if (action === "LIKE") {
+          setLikedCatIds((current) => new Set(current).add(cat.id));
+        } else {
+          setSkippedCatIds((current) => new Set(current).add(cat.id));
+        }
+        setIndex((current) => current + 1);
+      }
+      setMessage(errorMessage);
+    } finally {
+      setIsSwiping(false);
     }
   }
 
@@ -175,7 +275,7 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
               ref={searchInputRef}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search username, name, breed..."
+              placeholder="Search PawPals..."
               className="min-w-0 flex-1 bg-transparent text-sm font-black text-paw-ink outline-none placeholder:text-paw-cocoa/45"
             />
             {searchQuery ? (
@@ -184,44 +284,18 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
               </button>
             ) : null}
           </label>
-          {normalizedAccountSearch ? (
-            <section className="rounded-[20px] bg-white/90 p-3 shadow-soft">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <h2 className="text-xs font-black uppercase text-paw-cocoa/70">Accounts</h2>
-                {isSearchingUsers ? <span className="text-[11px] font-black text-paw-pink">Searching...</span> : null}
-              </div>
-              {userResults.length ? (
-                <div className="space-y-2">
-                  {userResults.map((user) => (
-                    <Link
-                      key={user.id}
-                      href={`/users/${user.id}`}
-                      className="flex w-full items-center gap-3 rounded-2xl bg-paw-blush/35 p-3 text-left"
-                    >
-                      <img
-                        src={user.avatarUrl || profileIcon.src}
-                        alt={user.username}
-                        className="h-11 w-11 shrink-0 rounded-full object-cover ring-2 ring-white"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-black text-paw-ink">{user.name}</span>
-                        <span className="block truncate text-xs font-bold text-paw-cocoa/70">@{user.username}</span>
-                      </span>
-                      <span className="rounded-full bg-paw-pink px-3 py-1.5 text-[11px] font-black text-white">View</span>
-                    </Link>
-                  ))}
-                </div>
-              ) : !isSearchingUsers ? (
-                <p className="rounded-2xl bg-paw-blush/45 px-4 py-4 text-center text-xs font-black text-paw-cocoa">
-                  No registered accounts found.
-                </p>
-              ) : null}
-            </section>
-          ) : null}
         </div>
       ) : null}
 
       <div className="hide-scrollbar mb-5 flex gap-3 overflow-x-auto">
+        <Link
+          href="/upload-pawpal"
+          className="relative mb-2 inline-flex h-12 shrink-0 items-center gap-2 rounded-[18px] bg-white/85 px-5 text-xs font-black text-paw-cocoa shadow-soft transition active:scale-95"
+          aria-label="Upload PawPal"
+        >
+          <Plus size={15} className="text-paw-pink" />
+          Upload PawPal
+        </Link>
         {filters.map((item) => {
           const Icon = item.icon;
           const active = filter === item.label;
@@ -229,10 +303,7 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
             <button
               key={item.label}
               type="button"
-              onClick={() => {
-                setFilter(item.label);
-                setMessage(item.label === "Nearby" ? "Nearest PawPals are sorted by distance" : `${item.label} filter selected`);
-              }}
+              onClick={() => applyFilter(item.label)}
               className={`relative mb-2 inline-flex h-12 shrink-0 items-center gap-2 rounded-[18px] px-5 text-xs font-black shadow-soft transition ${
                 active ? "bg-paw-pink text-white" : "bg-white/85 text-paw-cocoa"
               }`}
@@ -243,33 +314,69 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
             </button>
           );
         })}
+        <div className="mb-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowStatePicker((current) => !current)}
+            className={`relative inline-flex h-12 items-center gap-2 rounded-[18px] px-5 text-xs font-black shadow-soft transition ${
+              selectedState ? "bg-paw-pink text-white" : "bg-white/85 text-paw-cocoa"
+            }`}
+            aria-expanded={showStatePicker}
+          >
+            <MapPin size={15} className={selectedState ? "text-white" : "text-paw-lavender"} />
+            {selectedState || "State"}
+            <ChevronDown size={15} className={`transition ${showStatePicker ? "rotate-180" : ""}`} />
+            {selectedState ? <span className="absolute -bottom-2 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-paw-pink ring-4 ring-paw-blush" /> : null}
+          </button>
+        </div>
       </div>
+
+      {showStatePicker ? (
+        <div className="mb-5 overflow-hidden rounded-[22px] border border-paw-peach/60 bg-[#fff8ee] p-2 shadow-[0_18px_34px_rgba(122,81,63,0.12)]">
+          <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pr-1">
+            {malaysiaStates.map((state) => (
+              <button
+                key={state}
+                type="button"
+                onClick={() => applyStateFilter(state)}
+                className={`flex min-h-11 items-center justify-between rounded-[16px] px-3 text-left text-xs font-black transition ${
+                  selectedState === state ? "bg-paw-pink text-white" : "text-paw-cocoa hover:bg-paw-blush/55"
+                }`}
+              >
+                <span className="min-w-0 truncate">{state}</span>
+                {selectedState === state ? <PawPrint size={15} className="shrink-0 fill-white/20" /> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div>
         {cat ? (
           <div
             role="button"
             tabIndex={0}
-            onClick={() => window.location.assign(`/cats/${cat.id}`)}
+            onClick={() => router.push(`/cats/${cat.id}`)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") window.location.assign(`/cats/${cat.id}`);
+              if (event.key === "Enter") router.push(`/cats/${cat.id}`);
             }}
             className="relative h-[395px] overflow-hidden rounded-[27px] bg-paw-blush shadow-[0_20px_34px_rgba(122,81,63,0.18)]"
           >
             <img src={cat.image} alt={cat.name} className="h-full w-full object-cover" />
-            <div className="absolute left-4 top-4 rounded-full bg-paw-pink px-4 py-2 text-xs font-black text-white shadow-soft">
-              NEW
-            </div>
             <button
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 void swipe("LIKE");
               }}
-              className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-full bg-white/95 text-paw-cocoa shadow-soft"
+              disabled={isSwiping}
+              className={`absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-full bg-white/95 shadow-soft ${
+                likedCatIds.has(cat.id) ? "text-paw-pink" : "text-paw-cocoa"
+              } disabled:opacity-70`}
               aria-label="Like cat"
+              aria-pressed={likedCatIds.has(cat.id)}
             >
-              <Heart size={24} />
+              <Heart size={24} className={likedCatIds.has(cat.id) ? "fill-paw-pink" : ""} />
             </button>
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/62 via-black/28 to-transparent p-5 text-white">
               <h2 className="text-[31px] font-black leading-none">
@@ -291,14 +398,10 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
           <div className="rounded-[27px] bg-white/85 p-8 text-center shadow-soft">
             <PawPrint className="mx-auto h-14 w-14 fill-paw-pink/20 text-paw-pink" />
             <h2 className="mt-4 text-2xl font-black text-paw-ink">
-              {searchQuery && userResults.length ? "Accounts found above" : searchQuery ? "No matches found" : "No cats yet"}
+              {searchQuery ? "No PawPals found" : "No cats yet"}
             </h2>
             <p className="mt-2 text-sm font-bold text-paw-cocoa/70">
-              {searchQuery && userResults.length
-                ? "Tap an account to view their profile."
-                : searchQuery
-                  ? "Try another username, name, breed, or location."
-                  : "Uploaded cat profiles will appear here."}
+              {searchQuery ? "Try another cat name, breed, personality, bio, or location." : "Uploaded cat profiles will appear here."}
             </p>
           </div>
         )}
@@ -307,7 +410,8 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
           <button
             className="grid h-[62px] w-[62px] place-items-center rounded-full bg-paw-lavender text-white shadow-[0_10px_24px_rgba(171,116,224,0.35)]"
             type="button"
-            onClick={() => swipe("SKIP")}
+            onClick={() => void swipe("SKIP")}
+            disabled={!cat || isSwiping}
             aria-label="Skip cat"
           >
             <X size={29} strokeWidth={3} />
@@ -315,31 +419,39 @@ export function DiscoverClient({ initialCats = [] }: { initialCats?: ApiCat[] })
           <button
             className="mx-auto grid h-[86px] w-[86px] place-items-center rounded-full bg-white text-paw-rose shadow-[0_16px_28px_rgba(247,101,137,0.20)]"
             type="button"
-            onClick={() => swipe("LIKE")}
-            aria-label="Send paw"
+            onClick={() => void openMatches()}
+            aria-label="View PawPal matches"
           >
             <PawPrint className="fill-paw-pink/25" size={46} />
           </button>
           <button
             className="ml-auto grid h-[62px] w-[62px] place-items-center rounded-full bg-paw-pink text-white shadow-[0_10px_24px_rgba(247,101,137,0.35)]"
             type="button"
-            onClick={() => swipe("LIKE")}
+            onClick={() => void swipe("LIKE")}
+            disabled={!cat || isSwiping}
             aria-label="Like cat"
           >
             <Heart className="fill-white" size={28} />
           </button>
         </div>
 
-        <div className="mt-6 flex items-center gap-3 rounded-[20px] bg-white/85 px-4 py-3 shadow-soft">
-          <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-paw-blush">
-            <img src={discoverCat1.src} alt="" className="h-full w-full object-cover" />
+        <button
+          type="button"
+          onClick={() => {
+            if (cat) router.push(`/cats/${cat.id}`);
+            else if (matchCount !== null) void openMatches();
+          }}
+          className="mt-6 flex w-full items-center gap-3 rounded-[20px] bg-white/85 px-4 py-3 text-left shadow-soft transition active:scale-[0.99]"
+        >
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-paw-blush text-paw-pink">
+            <PawPrint className="fill-paw-pink/20" size={30} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-black text-paw-ink">{message}</p>
-            <p className="text-xs font-bold text-paw-cocoa/65">Explore more profiles nearby</p>
+            <p className="text-xs font-bold text-paw-cocoa/65">Showing real profiles uploaded by users</p>
           </div>
           <Sparkles size={28} className="shrink-0 text-paw-lavender" />
-        </div>
+        </button>
       </div>
       <BottomNav />
     </section>

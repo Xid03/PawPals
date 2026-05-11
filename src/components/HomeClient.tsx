@@ -10,10 +10,12 @@ import { useCurrentUser } from "@/components/CurrentUserProvider";
 import { PostCard, type DisplayPost } from "@/components/PostCard";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, ageLabel, catImage, distanceLabel, isGuestMode, type ApiCat, type ApiPost, type PublicUser } from "@/lib/api-client";
-import { cats as mockCats, quickActions } from "@/data/mockData";
-import backgroundButton from "../../images/backgroundButton.png";
 import bgArtwork from "../../images/bg.png";
+import eventIcon from "../../images/eventIcon.png";
 import profileIcon from "../../images/profileIcon.png";
+import storiesIcon from "../../images/storiesIcon.png";
+import tipIcon from "../../images/tipIcon.png";
+import vetIcon from "../../images/vetIcon.png";
 
 type NotificationItem = {
   id: string;
@@ -27,6 +29,13 @@ type NotificationItem = {
 };
 
 const FOLLOW_BACK_EVENT = "pawpals:follow-back";
+const FOLLOW_REQUEST_ACCEPTED_EVENT = "pawpals:follow-request-accepted";
+const quickActions = [
+  { title: "Health Tips", href: "/health", icon: tipIcon.src },
+  { title: "Stories & Memes", href: "/stories", icon: storiesIcon.src },
+  { title: "Vet Directory", href: "/vets", icon: vetIcon.src },
+  { title: "Events", href: "/events", icon: eventIcon.src }
+];
 
 function mapPost(post: ApiPost): DisplayPost {
   return {
@@ -50,13 +59,14 @@ export function HomeClient({
 }) {
   const router = useRouter();
   const { currentUser, setCurrentUser } = useCurrentUser();
-  const seededUser = initialUser ?? currentUser;
-  const [cats, setCats] = useState(mockCats);
+  const availableUser = initialUser ?? currentUser;
+  const [cats, setCats] = useState<ReturnType<typeof mapCat>[]>([]);
   const [posts, setPosts] = useState<DisplayPost[]>(() => initialPosts.map(mapPost));
-  const [userName, setUserName] = useState(seededUser?.name || "Cat Lover");
-  const [userAvatar, setUserAvatar] = useState(seededUser?.avatarUrl || profileIcon.src);
+  const [userName, setUserName] = useState(availableUser?.name || "");
+  const [userAvatar, setUserAvatar] = useState(availableUser?.avatarUrl || profileIcon.src);
   const [guest, setGuest] = useState(false);
-  const [nearbyStatus, setNearbyStatus] = useState("Tap Explore to use your location");
+  const [nearbyStatus, setNearbyStatus] = useState("Loading uploaded PawPals...");
+  const [isLoadingCats, setIsLoadingCats] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -76,7 +86,7 @@ export function HomeClient({
       breed: cat.breed,
       age: ageLabel(cat.ageMonths),
       distance: distanceLabel(cat),
-      image: catImage(cat, mockCats[0].image),
+      image: catImage(cat, profileIcon.src),
       about: cat.description ?? "",
       personality: cat.personalityTags,
       lookingFor: cat.lookingFor
@@ -101,19 +111,25 @@ export function HomeClient({
       })
       .catch(() => undefined);
 
-    apiFetch<ApiCat[]>("/api/cats?limit=4")
+    setIsLoadingCats(true);
+    apiFetch<ApiCat[]>("/api/cats/nearby?limit=4")
       .then((items) => {
-        if (items.length) {
-          setCats(items.map(mapCat));
-        }
+        setCats(items.map(mapCat));
+        setNearbyStatus(items.length ? "Showing uploaded PawPals from the database" : "No uploaded PawPals available yet");
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setCats([]);
+        setNearbyStatus("Could not load uploaded PawPals");
+      })
+      .finally(() => setIsLoadingCats(false));
 
     const savedLocation = window.localStorage.getItem("pawpals_location");
     if (savedLocation) {
       try {
         const location = JSON.parse(savedLocation) as { lat: number; lng: number };
-        void loadNearby(location.lat, location.lng, false);
+        void loadNearby(location.lat, location.lng, false).catch(() => {
+          setNearbyStatus("Could not load uploaded PawPals");
+        });
       } catch {
         window.localStorage.removeItem("pawpals_location");
       }
@@ -219,17 +235,22 @@ export function HomeClient({
   }
 
   async function loadNearby(lat: number, lng: number, updateStatus = true) {
-    const items = await apiFetch<ApiCat[]>(
-      `/api/cats/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radiusKm=50&limit=4`
-    );
-    if (items.length) {
+    setIsLoadingCats(true);
+    try {
+      const items = await apiFetch<ApiCat[]>(
+        `/api/cats/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radiusKm=50&limit=4`
+      );
       setCats(items.map(mapCat));
-      if (updateStatus) {
-        const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
-        setNearbyStatus(exactNearby ? "Sorted by your current location" : "No close cats yet, showing nearest PawPals");
+      if (items.length) {
+        if (updateStatus) {
+          const exactNearby = items.some((cat) => typeof cat.distanceKm === "number" && cat.distanceKm <= 50);
+          setNearbyStatus(exactNearby ? "Sorted by your current location" : "No close cats yet, showing nearest PawPals");
+        }
+      } else if (updateStatus) {
+        setNearbyStatus("No uploaded PawPals found near your location");
       }
-    } else if (updateStatus) {
-      setNearbyStatus("No nearby cats found yet");
+    } finally {
+      setIsLoadingCats(false);
     }
   }
 
@@ -296,6 +317,7 @@ export function HomeClient({
 
   function notificationHref(item: NotificationItem) {
     const postId = typeof item.data?.postId === "string" ? item.data.postId : "";
+    const storyId = typeof item.data?.storyId === "string" ? item.data.storyId : "";
     const matchId = typeof item.data?.matchId === "string" ? item.data.matchId : "";
     const requesterId = typeof item.data?.requesterId === "string" ? item.data.requesterId : item.requester?.id ?? "";
     const followerId = typeof item.data?.followerId === "string" ? item.data.followerId : "";
@@ -303,6 +325,7 @@ export function HomeClient({
     switch (item.type) {
       case "POST_LIKE":
       case "POST_COMMENT":
+        if (storyId) return `/stories?storyId=${encodeURIComponent(storyId)}`;
         return postId ? `/community?postId=${encodeURIComponent(postId)}` : "/community";
       case "NEW_MESSAGE":
         return "/chats";
@@ -321,6 +344,7 @@ export function HomeClient({
 
   async function acceptFollowRequest(item: NotificationItem) {
     const followRequestId = typeof item.data?.followRequestId === "string" ? item.data.followRequestId : "";
+    const requesterId = typeof item.data?.requesterId === "string" ? item.data.requesterId : item.requester?.id ?? "";
     if (!followRequestId) {
       setNotificationsStatus("Follow request is no longer available.");
       return;
@@ -330,8 +354,24 @@ export function HomeClient({
       setAcceptingFollowRequestIds((current) => new Set(current).add(followRequestId));
       await apiFetch(`/api/follow-requests/${followRequestId}/approve`, { method: "POST" });
       await markNotificationRead(item.id);
-      setNotifications((current) => current.filter((notification) => notification.id !== item.id));
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === item.id
+            ? {
+                ...notification,
+                readAt: notification.readAt ?? new Date().toISOString(),
+                data: {
+                  ...(notification.data ?? {}),
+                  followRequestStatus: "following"
+                }
+              }
+            : notification
+        )
+      );
       setNotificationsStatus("Follow request accepted.");
+      if (requesterId) {
+        window.dispatchEvent(new CustomEvent(FOLLOW_REQUEST_ACCEPTED_EVENT, { detail: { requesterId } }));
+      }
     } catch (error) {
       setNotificationsStatus(error instanceof Error ? error.message : "Could not accept follow request.");
     } finally {
@@ -534,31 +574,40 @@ export function HomeClient({
       ) : null}
 
       <section
-        className="relative mb-4 min-h-[220px] overflow-hidden rounded-[26px] px-5 py-5 text-center text-white shadow-soft"
-        style={{
-          backgroundImage: `linear-gradient(90deg, rgba(255,177,166,0.42), rgba(255,103,145,0.58), rgba(255,174,151,0.42)), url(${backgroundButton.src})`,
-          backgroundPosition: "center",
-          backgroundSize: "cover",
-          backgroundBlendMode: "soft-light, normal"
-        }}
+        className="relative mb-4 min-h-[220px] overflow-hidden rounded-[26px] bg-gradient-to-br from-[#ffb3c5] via-[#ff7ea5] to-[#ffc8a8] px-5 py-5 text-center text-white shadow-soft"
       >
-        <div className="pointer-events-none absolute inset-0 bg-[#ff8caf]/20" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(255,255,255,0.32),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.2),transparent_24%)]" />
         <div className="relative z-10">
           <h2 className="text-lg font-black drop-shadow-sm">Meet Nearby PawPals ✦</h2>
           <div className="relative mx-auto my-4 flex w-fit items-center justify-center">
-            {avatarStack.map((cat) => (
-              <img
-                key={cat.id}
-                src={cat.image}
-                alt={cat.name}
-                className="-mx-1 h-[66px] w-[66px] rounded-full object-cover ring-[4px] ring-white"
-              />
-            ))}
-            <span className="absolute bottom-0 left-1/2 grid h-9 w-9 -translate-x-1/2 translate-y-3 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
-              <PawPrint size={17} className="fill-paw-pink/20" />
-            </span>
+            {isLoadingCats ? (
+              <>
+                <span className="-mx-1 h-[66px] w-[66px] animate-pulse rounded-full bg-white/50 ring-[4px] ring-white" />
+                <span className="-mx-1 h-[66px] w-[66px] animate-pulse rounded-full bg-white/35 ring-[4px] ring-white" />
+              </>
+            ) : avatarStack.length ? (
+              avatarStack.map((cat) => (
+                <img
+                  key={cat.id}
+                  src={cat.image}
+                  alt={cat.name}
+                  className="-mx-1 h-[66px] w-[66px] rounded-full object-cover ring-[4px] ring-white"
+                />
+              ))
+            ) : (
+              <span className="grid h-[66px] w-[66px] place-items-center rounded-full bg-white/90 text-paw-pink ring-[4px] ring-white">
+                <PawPrint size={28} className="fill-paw-pink/20" />
+              </span>
+            )}
+            {!isLoadingCats && avatarStack.length ? (
+              <span className="absolute bottom-0 left-1/2 grid h-9 w-9 -translate-x-1/2 translate-y-3 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
+                <PawPrint size={17} className="fill-paw-pink/20" />
+              </span>
+            ) : null}
           </div>
-          <p className="mb-2 mt-5 text-sm font-black drop-shadow-sm">{cats.length} cats ready to meet</p>
+          <p className="mb-2 mt-5 text-sm font-black drop-shadow-sm">
+            {isLoadingCats ? "Loading PawPals..." : cats.length ? `${cats.length} PawPals ready to meet` : "No PawPals uploaded yet"}
+          </p>
           <p className="mb-4 flex items-center justify-center gap-1 text-[12px] font-bold text-white/90 drop-shadow-sm">
             <MapPin size={13} className="fill-white/20" />
             {nearbyStatus}
@@ -637,6 +686,12 @@ export function HomeClient({
                 {notifications.map((item) => (
                   (() => {
                     const followRequestId = typeof item.data?.followRequestId === "string" ? item.data.followRequestId : "";
+                    const followRequestStatus =
+                      item.data?.followRequestStatus === "following" || item.data?.followRequestStatus === "pending"
+                        ? item.data.followRequestStatus
+                        : followRequestId
+                          ? "pending"
+                          : "unavailable";
                     const followerId = typeof item.data?.followerId === "string" ? item.data.followerId : "";
                     const isAccepting = followRequestId ? acceptingFollowRequestIds.has(followRequestId) : false;
                     const savedFollowBackStatus =
@@ -663,18 +718,19 @@ export function HomeClient({
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-black text-paw-ink">{item.title}</span>
                       {item.body ? <span className="mt-1 block text-xs font-bold leading-relaxed text-paw-cocoa/70">{item.body}</span> : null}
-                      {item.type === "FOLLOW_REQUEST" && followRequestId ? (
+                      {item.type === "FOLLOW_REQUEST" && followRequestStatus !== "unavailable" ? (
                         <button
                           type="button"
                           onClick={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
+                            if (followRequestStatus === "following") return;
                             void acceptFollowRequest(item);
                           }}
-                          disabled={isAccepting}
+                          disabled={isAccepting || followRequestStatus === "following"}
                           className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-paw-pink px-4 text-xs font-black text-white shadow-soft disabled:opacity-70"
                         >
-                          {isAccepting ? "Accepting..." : "Accept"}
+                          {isAccepting ? "Accepting..." : followRequestStatus === "following" ? "Following" : "Accept"}
                         </button>
                       ) : null}
                       {item.type === "NEW_FOLLOWER" && followerId ? (

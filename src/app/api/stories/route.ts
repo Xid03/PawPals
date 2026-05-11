@@ -17,6 +17,7 @@ const storyQuerySchema = z.object({
 type StoryWithCounts = Awaited<ReturnType<typeof prisma.story.findMany>>[number] & {
   author: { id: string; name: string; username: string; avatarUrl: string | null };
   _count: { likes: number; views: number };
+  views?: { id: string }[];
 };
 
 async function withAccurateViewerCounts(stories: StoryWithCounts[], currentUserId?: string | null) {
@@ -37,6 +38,7 @@ async function withAccurateViewerCounts(stories: StoryWithCounts[], currentUserI
 
   return stories.map((story) => ({
     ...story,
+    viewedByMe: currentUserId ? Array.isArray(story.views) && story.views.length > 0 : false,
     _count: {
       ...story._count,
       views: countByStoryId.get(story.id) ?? 0
@@ -64,7 +66,11 @@ export async function GET(request: NextRequest) {
       },
       skip: page.skip,
       take: page.take,
-      include: { author: { select: { id: true, name: true, username: true, avatarUrl: true } }, _count: { select: { likes: true, views: true } } },
+      include: {
+        author: { select: { id: true, name: true, username: true, avatarUrl: true } },
+        views: auth?.id ? { where: { userId: auth.id }, select: { id: true } } : false,
+        _count: { select: { likes: true, views: true } }
+      },
       orderBy: { createdAt: "desc" }
     });
     return paginated(await withAccurateViewerCounts(stories, auth?.id), page);

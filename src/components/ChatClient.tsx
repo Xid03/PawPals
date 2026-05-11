@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Camera, ChevronRight, CirclePlus, Heart, Home, Image as ImageIcon, PawPrint, Search, SlidersHorizontal, Smile, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bell, Camera, ChevronRight, CirclePlus, Heart, Home, Image as ImageIcon, PawPrint, Pencil, Search, SlidersHorizontal, Smile, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { useCurrentUser } from "@/components/CurrentUserProvider";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, getToken, isGuestMode, requireSignedIn, type ApiConversation, type ApiMessage, type PublicUser } from "@/lib/api-client";
-import { cats } from "@/data/mockData";
 import bgChat from "../../images/bgChat.png";
 import homepageImage from "../../images/homepage.png";
 import loginIcon from "../../images/loginIcon.png";
 import profile1 from "../../images/profile1.png";
+import profileIcon from "../../images/profileIcon.png";
 
 type DisplayMessage = {
   id: string;
@@ -100,7 +100,7 @@ function formatMessageDateLabel(createdAt?: string) {
 }
 
 function fallbackAvatar(user?: PublicUser) {
-  return user?.avatarUrl || cats[0].image;
+  return user?.avatarUrl || profileIcon.src;
 }
 
 function threadTone(index: number) {
@@ -115,17 +115,20 @@ function threadTone(index: number) {
 export function ChatClient({
   initialGuestLocked = null,
   initialConversations = [],
-  initialCurrentUserId = null
+  initialCurrentUserId = null,
+  initialConversationId = null
 }: {
   initialGuestLocked?: boolean | null;
   initialConversations?: ApiConversation[];
   initialCurrentUserId?: string | null;
+  initialConversationId?: string | null;
 }) {
   const router = useRouter();
   const { currentUser } = useCurrentUser();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const longPressTimerRef = useRef<number | null>(null);
+  const messageLongPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
   const [guestLocked, setGuestLocked] = useState<boolean | null>(initialGuestLocked);
   const [conversations, setConversations] = useState<ApiConversation[]>(initialConversations);
@@ -141,7 +144,13 @@ export function ChatClient({
   const [showNotifications, setShowNotifications] = useState(false);
   const [menuThread, setMenuThread] = useState<ChatThread | null>(null);
   const [isDeletingThread, setIsDeletingThread] = useState(false);
+  const [menuMessage, setMenuMessage] = useState<DisplayMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<DisplayMessage | null>(null);
+  const [pendingDeleteMessage, setPendingDeleteMessage] = useState<DisplayMessage | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [isSavingMessageAction, setIsSavingMessageAction] = useState(false);
   const [activeStoryReply, setActiveStoryReply] = useState<StoryReplyPreview | null>(null);
+  const [targetConversationId, setTargetConversationId] = useState(initialConversationId);
   const currentUserId = initialCurrentUserId ?? currentUser?.id ?? decodeCurrentUserId();
 
   useEffect(() => {
@@ -181,6 +190,14 @@ export function ChatClient({
     return apiThreads;
   }, [conversations, currentUserId]);
 
+  useEffect(() => {
+    if (!targetConversationId || guestLocked) return;
+    const thread = threads.find((item) => item.id === targetConversationId);
+    if (!thread) return;
+    if (selectedThread?.id === thread.id) return;
+    void openThread(thread);
+  }, [guestLocked, selectedThread?.id, targetConversationId, threads]);
+
   const visibleThreads = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return threads.filter((thread) => {
@@ -197,7 +214,7 @@ export function ChatClient({
     });
   }, [conversationFilter, searchQuery, threads]);
 
-  const displayMessages = useMemo(() => {
+  const displayMessages = useMemo<DisplayMessage[]>(() => {
     if (!selectedThread) return [];
 
     return messages.map((message) => ({
@@ -245,18 +262,27 @@ export function ChatClient({
   }
 
   function closeThread() {
+    setTargetConversationId(null);
     setSelectedThread(null);
     setConversation(null);
     setMessages([]);
     setBody("");
     setStatus("");
     setShowAttachments(false);
+    router.replace("/chats", { scroll: false });
   }
 
   function clearLongPressTimer() {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    }
+  }
+
+  function clearMessageLongPressTimer() {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
     }
   }
 
@@ -272,6 +298,70 @@ export function ChatClient({
 
   function endThreadPress() {
     clearLongPressTimer();
+  }
+
+  function beginMessagePress(message: DisplayMessage) {
+    if (message.from !== "me") return;
+    clearMessageLongPressTimer();
+    messageLongPressTimerRef.current = window.setTimeout(() => {
+      setMenuMessage(message);
+      setStatus("");
+    }, 520);
+  }
+
+  function endMessagePress() {
+    clearMessageLongPressTimer();
+  }
+
+  function startEditMessage(message: DisplayMessage) {
+    setMenuMessage(null);
+    setEditingMessage(message);
+    setEditBody(message.text);
+  }
+
+  async function saveEditedMessage() {
+    const trimmedBody = editBody.trim();
+    if (!editingMessage || !conversation || !trimmedBody || isSavingMessageAction) return;
+
+    setIsSavingMessageAction(true);
+    try {
+      const data = await apiFetch<{ message: ApiMessage }>(
+        `/api/conversations/${conversation.id}/messages/${editingMessage.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ body: trimmedBody })
+        }
+      );
+      setMessages((current) => current.map((message) => (message.id === editingMessage.id ? data.message : message)));
+      setEditingMessage(null);
+      setEditBody("");
+      setStatus("Message updated");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not edit message");
+    } finally {
+      setIsSavingMessageAction(false);
+    }
+  }
+
+  async function deleteMessage(message: DisplayMessage) {
+    if (!conversation || isSavingMessageAction) return;
+
+    setIsSavingMessageAction(true);
+    try {
+      await apiFetch(`/api/conversations/${conversation.id}/messages/${message.id}`, { method: "DELETE" });
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      setMenuMessage(null);
+      setPendingDeleteMessage(null);
+      if (editingMessage?.id === message.id) {
+        setEditingMessage(null);
+        setEditBody("");
+      }
+      setStatus("Message deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete message");
+    } finally {
+      setIsSavingMessageAction(false);
+    }
   }
 
   async function deleteThread(thread: ChatThread) {
@@ -665,7 +755,20 @@ export function ChatClient({
           </div>
 
           {displayMessages.map((message) => (
-            <div key={message.id} className={`relative flex ${message.from === "me" ? "justify-end" : "justify-start"}`}>
+            <div
+              key={message.id}
+              className={`group relative flex ${message.from === "me" ? "justify-end" : "justify-start"}`}
+              onMouseEnter={() => {
+                if (message.from === "me") setMenuMessage(message);
+              }}
+              onMouseLeave={() => {
+                if (menuMessage?.id === message.id) setMenuMessage(null);
+              }}
+              onPointerDown={() => beginMessagePress(message)}
+              onPointerUp={endMessagePress}
+              onPointerCancel={endMessagePress}
+              onPointerLeave={endMessagePress}
+            >
               {message.from === "them" ? (
                 <span className="absolute -left-1 top-2 grid h-8 w-8 place-items-center rounded-full bg-white text-paw-pink shadow-soft">
                   <PawPrint size={17} className="fill-paw-pink/20" />
@@ -720,11 +823,170 @@ export function ChatClient({
                   {message.from === "me" ? <span className="ml-2 text-[#55a7ff]">✓✓</span> : null}
                 </p>
               </div>
+              {message.from === "me" && menuMessage?.id === message.id ? (
+                <div className="absolute -top-9 right-6 z-20 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 shadow-[0_10px_24px_rgba(122,81,63,0.14)]">
+                  {!message.imageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => startEditMessage(message)}
+                      className="grid h-8 w-8 place-items-center rounded-full text-paw-cocoa hover:bg-paw-blush"
+                      aria-label="Edit message"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuMessage(null);
+                      setPendingDeleteMessage(message);
+                    }}
+                    disabled={isSavingMessageAction}
+                    className="grid h-8 w-8 place-items-center rounded-full text-paw-rose hover:bg-paw-blush disabled:opacity-60"
+                    aria-label="Delete message"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ) : null}
             </div>
           ))}
 
         </div>
       )}
+      {editingMessage ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-paw-ink/35 px-5 backdrop-blur-md transition-opacity duration-200">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveEditedMessage();
+            }}
+            className="relative w-full max-w-[392px] animate-[modalPop_180ms_ease-out] overflow-hidden rounded-[38px] border-[3px] border-paw-blush/65 bg-[#fff8ee] px-6 pb-7 pt-8 shadow-[0_34px_90px_rgba(58,34,26,0.3)] ring-4 ring-white/55"
+          >
+            <div className="pointer-events-none absolute inset-2 rounded-[34px] border border-paw-blush/45" />
+            <PawPrint className="pointer-events-none absolute -left-3 bottom-32 h-16 w-16 rotate-[-12deg] fill-paw-peach/20 text-paw-peach/20" />
+            <PawPrint className="pointer-events-none absolute -right-2 bottom-32 h-16 w-16 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+            <Sparkles className="pointer-events-none absolute left-8 top-9 h-5 w-5 fill-paw-butter text-paw-butter" />
+            <Sparkles className="pointer-events-none absolute right-[29%] top-20 h-5 w-5 fill-paw-butter text-paw-butter" />
+            <span className="pointer-events-none absolute right-[23%] top-12 h-3 w-3 rounded-full border-4 border-paw-blush" />
+
+            <button
+              type="button"
+              onClick={() => {
+                setEditingMessage(null);
+                setEditBody("");
+              }}
+              className="absolute right-6 top-7 z-10 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/95 text-paw-cocoa shadow-[0_14px_30px_rgba(247,101,137,0.23)] ring-2 ring-paw-blush/45"
+              aria-label="Close edit message"
+            >
+              <X size={29} strokeWidth={3} />
+            </button>
+
+            <div className="relative mb-7 pr-16 text-left">
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 whitespace-nowrap text-[30px] font-black leading-tight text-paw-ink min-[390px]:text-[34px]">
+                  Edit Message
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/80 text-paw-pink shadow-[0_8px_18px_rgba(247,101,137,0.18)] min-[390px]:h-11 min-[390px]:w-11">
+                    <PawPrint className="h-7 w-7 fill-paw-pink/65 text-paw-pink min-[390px]:h-8 min-[390px]:w-8" />
+                  </span>
+                </h2>
+                <div className="mt-4 h-1 w-48 rounded-full border-t-4 border-dashed border-paw-blush" />
+              </div>
+            </div>
+
+            <label className="relative block">
+              <textarea
+                value={editBody}
+                onChange={(event) => setEditBody(event.target.value)}
+                className="min-h-[190px] w-full resize-none rounded-[30px] border-[3px] border-paw-blush/80 bg-white/95 px-6 py-6 pr-20 text-xl font-black leading-relaxed text-paw-ink shadow-[0_14px_32px_rgba(247,101,137,0.12)] outline-none transition focus:border-paw-pink min-[390px]:min-h-[220px] min-[390px]:text-[22px]"
+                maxLength={500}
+                autoFocus
+              />
+              <span className="absolute bottom-6 right-6 inline-flex items-center gap-2 text-lg font-black text-paw-cocoa/65">
+                {editBody.length}/500
+                <span className="text-[30px] leading-none text-paw-blush">♡</span>
+              </span>
+            </label>
+
+            <div className="my-6 flex items-center justify-center">
+              <Heart className="h-7 w-7 fill-paw-rose text-paw-rose drop-shadow-[0_5px_10px_rgba(247,101,137,0.18)]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingMessage(null);
+                  setEditBody("");
+                }}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-[24px] border-2 border-paw-blush bg-white/88 text-base font-black text-paw-ink shadow-[0_12px_26px_rgba(122,81,63,0.08)] min-[390px]:h-16 min-[390px]:gap-3 min-[390px]:rounded-[28px] min-[390px]:text-xl"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-paw-blush/65 text-paw-cocoa">
+                  <X size={22} strokeWidth={3} />
+                </span>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!editBody.trim() || isSavingMessageAction}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-[24px] bg-gradient-to-r from-paw-pink to-paw-rose text-base font-black text-white shadow-[0_18px_34px_rgba(247,101,137,0.4)] disabled:opacity-60 min-[390px]:h-16 min-[390px]:gap-3 min-[390px]:rounded-[28px] min-[390px]:text-xl"
+              >
+                {isSavingMessageAction ? "Saving..." : "Save"}
+                <PawPrint className="h-6 w-6 fill-white/30 text-white" />
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {pendingDeleteMessage ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-paw-ink/35 px-5 backdrop-blur-md transition-opacity duration-200">
+          <div className="relative w-full max-w-[360px] animate-[modalPop_180ms_ease-out] overflow-hidden rounded-[34px] border border-white/75 bg-[#fff8ee]/95 px-6 pb-6 pt-7 text-center shadow-[0_30px_80px_rgba(58,34,26,0.28)]">
+            <PawPrint className="pointer-events-none absolute left-6 top-6 h-12 w-12 rotate-[-14deg] fill-paw-peach/20 text-paw-peach/20" />
+            <PawPrint className="pointer-events-none absolute right-6 top-[118px] h-12 w-12 rotate-12 fill-paw-peach/20 text-paw-peach/20" />
+            <Sparkles className="pointer-events-none absolute left-[31%] top-11 h-5 w-5 fill-paw-blush text-paw-blush" />
+            <Sparkles className="pointer-events-none absolute right-[27%] top-14 h-5 w-5 fill-paw-butter text-paw-butter" />
+
+            <div className="relative mx-auto grid h-[104px] w-[104px] place-items-center rounded-full bg-paw-blush/55 shadow-[0_16px_36px_rgba(247,101,137,0.14)] ring-4 ring-white">
+              <div className="grid h-[74px] w-[74px] place-items-center rounded-[24px] bg-gradient-to-br from-paw-pink to-paw-rose text-white shadow-[0_14px_28px_rgba(247,101,137,0.35)] ring-4 ring-white/80">
+                <Trash2 size={34} />
+                <PawPrint className="absolute h-5 w-5 translate-y-2 fill-white/35 text-white/35" />
+              </div>
+            </div>
+
+            <h2 className="mt-6 text-[31px] font-black leading-tight text-paw-ink">Delete this message?</h2>
+            <p className="mx-auto mt-3 max-w-[270px] text-center text-base font-bold leading-relaxed text-paw-cocoa/70">
+              This message will be removed from the conversation.
+            </p>
+
+            <div className="my-5 flex items-center justify-center gap-3 text-paw-blush">
+              <span className="h-0.5 w-24 rounded-full border-t-2 border-dashed border-paw-blush" />
+              <Heart className="h-5 w-5 shrink-0 fill-paw-rose text-paw-rose" />
+              <span className="h-0.5 w-24 rounded-full border-t-2 border-dashed border-paw-blush" />
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteMessage(null)}
+                disabled={isSavingMessageAction}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-[24px] border-2 border-paw-blush bg-white/80 text-base font-black text-paw-ink shadow-[0_10px_22px_rgba(122,81,63,0.07)] disabled:opacity-60"
+              >
+                <X size={22} strokeWidth={3} />
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteMessage(pendingDeleteMessage)}
+                disabled={isSavingMessageAction}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-[24px] bg-gradient-to-r from-paw-pink to-paw-rose text-base font-black text-white shadow-[0_16px_30px_rgba(247,101,137,0.32)] disabled:opacity-60"
+              >
+                <Trash2 size={22} />
+                {isSavingMessageAction ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {selectedThread ? (
         <div className="fixed bottom-[76px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-[24px] bg-white/92 px-4 py-3 shadow-[0_-12px_28px_rgba(122,81,63,0.12)] backdrop-blur md:bottom-[100px] md:rounded-[24px]">
           <div className="flex items-center gap-2">

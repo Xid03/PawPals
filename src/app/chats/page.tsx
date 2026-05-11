@@ -53,7 +53,11 @@ async function getInitialConversations(userId: string): Promise<ApiConversation[
   }
 }
 
-export default async function ChatPage() {
+export default async function ChatPage({
+  searchParams
+}: {
+  searchParams?: { conversationId?: string };
+}) {
   const user = await getCurrentUserFromCookie();
   const initialConversations = user ? await getInitialConversations(user.id) : [];
 
@@ -62,6 +66,7 @@ export default async function ChatPage() {
       initialGuestLocked={!user}
       initialConversations={initialConversations}
       initialCurrentUserId={user?.id ?? null}
+      initialConversationId={searchParams?.conversationId ?? null}
     />
   );
 }

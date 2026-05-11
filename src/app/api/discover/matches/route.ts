@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth(request);
     const page = getPagination(request.nextUrl.searchParams);
     const matches = await prisma.match.findMany({
-      where: { OR: [{ userAId: auth.id }, { userBId: auth.id }] },
+      where: {
+        OR: [{ userAId: auth.id }, { userBId: auth.id }],
+        NOT: [
+          { userA: { email: { endsWith: "@pawpals.test" } } },
+          { userB: { email: { endsWith: "@pawpals.test" } } }
+        ]
+      },
       skip: page.skip,
       take: page.take,
       include: {

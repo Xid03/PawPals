@@ -7,9 +7,7 @@ import { useRouter } from "next/navigation";
 import { Bookmark, Camera, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
-import type { DisplayPost } from "@/components/PostCard";
-import { apiFetch, requireSignedIn, type PublicUser } from "@/lib/api-client";
-import { posts as mockPosts } from "@/data/mockData";
+import { apiFetch, requireSignedIn, type ApiPost, type PublicUser } from "@/lib/api-client";
 import profileIcon from "../../../images/profileIcon.png";
 
 type ApiStory = {
@@ -29,6 +27,7 @@ type ApiStory = {
     likes: number;
     views: number;
   };
+  viewedByMe?: boolean;
 };
 
 type StoryItem = {
@@ -41,9 +40,33 @@ type StoryItem = {
   caption: string;
   likes: number;
   views: number;
+  viewedByMe: boolean;
   createdAt: string;
   expiresAt: string;
   isApiStory: boolean;
+};
+
+type MemeFeedPost = {
+  id: string;
+  authorId: string;
+  user: string;
+  username?: string;
+  avatar: string;
+  time: string;
+  text: string;
+  image?: string;
+  mediaType?: "image" | "video";
+  likes: number;
+  comments: number;
+  likedByMe: boolean;
+  savedByMe: boolean;
+};
+
+type MemeComment = {
+  id: string;
+  text: string;
+  createdAt?: string;
+  author?: PublicUser;
 };
 
 function isStoryActive(story: { expiresAt: string }) {
@@ -52,6 +75,26 @@ function isStoryActive(story: { expiresAt: string }) {
 
 function sortStoriesByUploadTime<T extends { createdAt: string }>(stories: T[]) {
   return [...stories].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+function mapMemePost(post: ApiPost): MemeFeedPost {
+  const mediaUrl = post.images?.[0]?.url;
+  const isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl ?? "");
+  return {
+    id: post.id,
+    authorId: post.author.id,
+    user: post.author?.name ?? "PawPal",
+    username: post.author?.username,
+    avatar: post.author?.avatarUrl ?? profileIcon.src,
+    time: new Date(post.createdAt).toLocaleDateString(),
+    text: post.text,
+    image: mediaUrl,
+    mediaType: isVideo ? "video" : "image",
+    likes: post._count?.likes ?? 0,
+    comments: post._count?.comments ?? 0,
+    likedByMe: Boolean(post.likedByMe),
+    savedByMe: Boolean(post.savedByMe)
+  };
 }
 
 function mapApiStory(story: ApiStory): StoryItem {
@@ -65,6 +108,7 @@ function mapApiStory(story: ApiStory): StoryItem {
     caption: story.caption ?? "Shared a new story.",
     likes: story._count?.likes ?? 0,
     views: story._count?.views ?? 0,
+    viewedByMe: Boolean(story.viewedByMe),
     createdAt: story.createdAt,
     expiresAt: story.expiresAt,
     isApiStory: true
@@ -92,13 +136,13 @@ export default function StoriesPage() {
   const [isLoadingStoryViewers, setIsLoadingStoryViewers] = useState(false);
   const [storyPendingDelete, setStoryPendingDelete] = useState<StoryItem | null>(null);
   const [isDeletingStory, setIsDeletingStory] = useState(false);
-  const [commentsByPost, setCommentsByPost] = useState<Record<string, string[]>>(() => ({
-    [mockPosts[2].id]: ["This is too real.", "Treats solve everything."],
-    [mockPosts[1].id]: ["Box castle champion."]
-  }));
-  const [commentPost, setCommentPost] = useState<DisplayPost | null>(null);
+  const [memePosts, setMemePosts] = useState<MemeFeedPost[]>([]);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, MemeComment[]>>({});
+  const [commentPost, setCommentPost] = useState<MemeFeedPost | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [optionsPost, setOptionsPost] = useState<DisplayPost | null>(null);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentLoadingPostId, setCommentLoadingPostId] = useState<string | null>(null);
+  const [optionsPost, setOptionsPost] = useState<MemeFeedPost | null>(null);
   const [storySlideDirection, setStorySlideDirection] = useState<1 | -1>(1);
 
   useEffect(() => {
@@ -127,12 +171,21 @@ export default function StoriesPage() {
     void loadStories();
   }, []);
 
+  useEffect(() => {
+    apiFetch<ApiPost[]>("/api/posts?topic=MEMES&limit=20")
+      .then((posts) => setMemePosts(posts.map(mapMemePost)))
+      .catch(() => setMemePosts([]));
+  }, []);
+
   const storyOwners = useMemo(() => {
     const owners = new Map<string, StoryItem>();
     storyItems.forEach((story) => {
       const existing = owners.get(story.ownerKey);
-      if (!existing || new Date(story.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
-        owners.set(story.ownerKey, story);
+      const storyIsNewer = !existing || new Date(story.createdAt).getTime() > new Date(existing.createdAt).getTime();
+      if (storyIsNewer) {
+        owners.set(story.ownerKey, { ...story, viewedByMe: existing ? existing.viewedByMe && story.viewedByMe : story.viewedByMe });
+      } else if (existing) {
+        owners.set(story.ownerKey, { ...existing, viewedByMe: existing.viewedByMe && story.viewedByMe });
       }
     });
     return sortStoriesByUploadTime(Array.from(owners.values()));
@@ -150,6 +203,23 @@ export default function StoriesPage() {
   const activeStoryGroupIndex = activeStory
     ? activeStoryGroup.findIndex((story) => story.id === activeStory.id)
     : -1;
+  const visibleMemePosts = memePosts;
+
+  useEffect(() => {
+    if (!activeStory || !activeStory.isApiStory || activeStory.ownerKey === currentUser?.id || activeStory.viewedByMe) return;
+
+    setStoryItems((current) =>
+      current.map((item) => (item.id === activeStory.id ? { ...item, viewedByMe: true } : item))
+    );
+    void apiFetch<{ counted: boolean; viewed: boolean }>(`/api/stories/${activeStory.id}/view`, { method: "POST" })
+      .then((result) => {
+        if (!result.counted) return;
+        setStoryItems((current) =>
+          current.map((item) => (item.id === activeStory.id ? { ...item, views: item.views + 1 } : item))
+        );
+      })
+      .catch(() => undefined);
+  }, [activeStory, currentUser?.id]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -236,18 +306,7 @@ export default function StoriesPage() {
     const index = allStoryItems.findIndex((story) => story.id === storyId);
     if (index === -1) return;
 
-    const story = allStoryItems[index];
     setActiveStoryIndex(index);
-    if (story.isApiStory && story.ownerKey !== currentUser?.id) {
-      void apiFetch<{ counted: boolean }>(`/api/stories/${story.id}/view`, { method: "POST" })
-        .then((result) => {
-          if (!result.counted) return;
-          setStoryItems((current) =>
-            current.map((item) => (item.id === story.id ? { ...item, views: item.views + 1 } : item))
-          );
-        })
-        .catch(() => undefined);
-    }
   }
 
   function moveStory(direction: -1 | 1) {
@@ -297,45 +356,124 @@ export default function StoriesPage() {
     moveStoryAccount(deltaX < 0 ? 1 : -1);
   }
 
-  function submitComment(event: FormEvent<HTMLFormElement>) {
+  async function submitComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!commentPost || !commentText.trim()) return;
+    if (!commentPost || !commentText.trim() || isSubmittingComment) return;
     try {
       requireSignedIn();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Please log in to comment.");
       return;
     }
-    setCommentsByPost((current) => ({
-      ...current,
-      [commentPost.id]: [...(current[commentPost.id] ?? []), commentText.trim()]
-    }));
-    setCommentText("");
-    setStatus("Comment added");
+
+    const text = commentText.trim();
+    setIsSubmittingComment(true);
+    try {
+      const response = await apiFetch<{ comment: MemeComment }>(`/api/posts/${commentPost.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ text })
+      });
+      setCommentsByPost((current) => ({
+        ...current,
+        [commentPost.id]: [...(current[commentPost.id] ?? []), response.comment]
+      }));
+      setMemePosts((current) =>
+        current.map((post) =>
+          post.id === commentPost.id ? { ...post, comments: post.comments + 1 } : post
+        )
+      );
+      setCommentPost((current) => (current ? { ...current, comments: current.comments + 1 } : current));
+      setCommentText("");
+      setStatus("Comment added");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to add comment.");
+    } finally {
+      setIsSubmittingComment(false);
+    }
   }
 
-  function copyPostLink(post: DisplayPost) {
+  function copyPostLink(post: MemeFeedPost) {
     const link = `${window.location.origin}/stories#${post.id}`;
     void navigator.clipboard?.writeText(link).catch(() => undefined);
     setStatus("Post link copied");
     setOptionsPost(null);
   }
 
-  function openComments(post: DisplayPost) {
+  async function openComments(post: MemeFeedPost) {
     try {
       requireSignedIn();
       setCommentPost(post);
+      setCommentLoadingPostId(post.id);
+      const comments = await apiFetch<MemeComment[]>(`/api/posts/${post.id}/comments?limit=50`);
+      setCommentsByPost((current) => ({ ...current, [post.id]: comments }));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Please log in to comment.");
+    } finally {
+      setCommentLoadingPostId(null);
     }
   }
 
-  function openPostOptions(post: DisplayPost) {
+  function openPostOptions(post: MemeFeedPost) {
     try {
       requireSignedIn();
+      if (post.authorId !== currentUser?.id) return;
       setOptionsPost(post);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Please log in to use post options.");
+    }
+  }
+
+  async function toggleMemeLike(post: MemeFeedPost) {
+    try {
+      requireSignedIn();
+      const response = await apiFetch<{ liked: boolean }>(`/api/posts/${post.id}/like`, { method: "POST" });
+      setMemePosts((current) =>
+        current.map((item) =>
+          item.id === post.id
+            ? {
+                ...item,
+                likedByMe: response.liked,
+                likes: Math.max(0, item.likes + (response.liked ? 1 : -1))
+              }
+            : item
+        )
+      );
+      setStatus(response.liked ? "Meme liked" : "Meme unliked");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to update like.");
+    }
+  }
+
+  async function toggleMemeSave(post: MemeFeedPost) {
+    try {
+      requireSignedIn();
+      const response = await apiFetch<{ saved: boolean }>(`/api/posts/${post.id}/save`, { method: "POST" });
+      setMemePosts((current) =>
+        current.map((item) => (item.id === post.id ? { ...item, savedByMe: response.saved } : item))
+      );
+      setStatus(response.saved ? "Meme saved" : "Meme removed from saved posts");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to update saved meme.");
+    }
+  }
+
+  async function deleteMeme(post: MemeFeedPost) {
+    if (post.authorId !== currentUser?.id) return;
+    if (!window.confirm("Delete this meme?")) return;
+
+    try {
+      requireSignedIn();
+      await apiFetch<{ deleted: boolean }>(`/api/posts/${post.id}`, { method: "DELETE" });
+      setMemePosts((current) => current.filter((item) => item.id !== post.id));
+      setCommentsByPost((current) => {
+        const next = { ...current };
+        delete next[post.id];
+        return next;
+      });
+      setOptionsPost(null);
+      setStatus("Meme deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to delete meme.");
     }
   }
 
@@ -492,7 +630,11 @@ export default function StoriesPage() {
           </button>
           {visibleStories.map((story) => (
             <button key={story.id} type="button" className="flex w-[72px] shrink-0 flex-col items-center text-center" onClick={() => openStory(story.id)}>
-              <span className="relative block h-[64px] w-[64px] rounded-full bg-gradient-to-br from-paw-pink to-paw-lavender p-[3px] shadow-soft ring-[4px] ring-white">
+              <span
+                className={`relative block h-[64px] w-[64px] rounded-full shadow-soft ring-[4px] ring-white ${
+                  story.viewedByMe ? "bg-white p-0" : "bg-gradient-to-br from-paw-pink to-paw-lavender p-[3px]"
+                }`}
+              >
                 <span className="block h-full w-full overflow-hidden rounded-full bg-white">
                   <img src={story.avatar} alt={story.name} className="h-full w-full rounded-full object-cover" />
                 </span>
@@ -520,8 +662,8 @@ export default function StoriesPage() {
 
       <StatusToast message={status} onDismiss={() => setStatus("")} />
       <div className="relative space-y-4 px-4">
-        {[mockPosts[2], mockPosts[1]].map((post, index) => {
-          const isMeme = index === 0;
+        {visibleMemePosts.map((post) => {
+          const isMeme = true;
           return (
           <article
             key={post.id}
@@ -547,7 +689,7 @@ export default function StoriesPage() {
                   </h2>
                   <div className="mt-1 flex min-w-0 items-center gap-2">
                     <p className="text-xs font-bold text-paw-cocoa/65">
-                      {post.time} <span className="text-paw-pink">•</span>
+                    {post.username ? `@${post.username}` : post.time} <span className="text-paw-pink">•</span>
                     </p>
                     {isMeme ? (
                       <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-paw-pink px-2 text-[10px] font-black uppercase tracking-wide text-white shadow-soft">
@@ -557,20 +699,26 @@ export default function StoriesPage() {
                   </div>
                 </div>
               </div>
-              <button type="button" onClick={() => openPostOptions(post)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-paw-cocoa" aria-label="Post options">
-                <MoreHorizontal size={22} />
-              </button>
+              {post.authorId === currentUser?.id ? (
+                <button type="button" onClick={() => openPostOptions(post)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-paw-cocoa" aria-label="Post options">
+                  <MoreHorizontal size={22} />
+                </button>
+              ) : null}
             </div>
             <p className={`mb-3 text-base font-black leading-snug text-paw-ink ${isMeme ? "rounded-2xl bg-white/55 px-3 py-2" : ""}`}>
               {post.text} <Heart className="inline h-4 w-4 fill-paw-rose text-paw-rose" />
             </p>
             {post.image ? (
               <div className={`relative ${isMeme ? "rounded-[24px] bg-white p-2 shadow-[0_12px_28px_rgba(247,101,137,0.12)]" : ""}`}>
-                <img
-                  src={post.image}
-                  alt=""
-                  className={`w-full object-cover ${isMeme ? "h-[215px] rounded-[18px]" : index === 1 ? "h-[180px] rounded-[22px]" : "h-[205px] rounded-[22px]"}`}
-                />
+                {post.mediaType === "video" ? (
+                  <video src={post.image} className="h-[215px] w-full rounded-[18px] object-cover" controls />
+                ) : (
+                  <img
+                    src={post.image}
+                    alt=""
+                    className="h-[215px] w-full rounded-[18px] object-cover"
+                  />
+                )}
                 <Sparkles className="absolute bottom-3 left-3 h-6 w-6 fill-paw-butter text-paw-butter drop-shadow" />
                 <Heart className="absolute -right-2 -top-3 h-8 w-8 rotate-[-15deg] fill-paw-rose text-paw-rose" />
                 {isMeme ? (
@@ -582,22 +730,37 @@ export default function StoriesPage() {
             ) : null}
             <div className={`mt-3 flex items-center justify-between rounded-[20px] px-4 py-2.5 text-paw-ink ${isMeme ? "bg-white/72" : "bg-paw-blush/35"}`}>
               <div className="flex items-center gap-6 text-sm font-black">
-                <button type="button" className="inline-flex items-center gap-2" onClick={() => setStatus("Like updated")}>
-                  <Heart size={22} className="fill-paw-pink text-paw-pink" />
+                <button type="button" className="inline-flex items-center gap-2 transition active:scale-95" onClick={() => void toggleMemeLike(post)} aria-pressed={post.likedByMe}>
+                  <Heart size={22} className={post.likedByMe ? "fill-paw-pink text-paw-pink" : "text-paw-cocoa"} />
                   {post.likes}
                 </button>
-                <button type="button" className="inline-flex items-center gap-2" onClick={() => openComments(post)}>
+                <button type="button" className="inline-flex items-center gap-2" onClick={() => void openComments(post)}>
                   <MessageCircle size={22} />
                   {commentsByPost[post.id]?.length ?? post.comments}
                 </button>
               </div>
-              <button type="button" onClick={() => setStatus("Saved posts updated")} className="text-paw-cocoa" aria-label="Save post">
-                <Bookmark size={24} />
+              <button
+                type="button"
+                onClick={() => void toggleMemeSave(post)}
+                className={post.savedByMe ? "text-paw-pink" : "text-paw-cocoa"}
+                aria-label={post.savedByMe ? "Unsave meme" : "Save meme"}
+                aria-pressed={post.savedByMe}
+              >
+                <Bookmark size={24} className={post.savedByMe ? "fill-paw-pink" : ""} />
               </button>
             </div>
           </article>
           );
         })}
+        {!visibleMemePosts.length ? (
+          <div className="rounded-[28px] border-2 border-dashed border-paw-pink/25 bg-white/78 p-6 text-center shadow-[0_18px_45px_rgba(122,81,63,0.08)]">
+            <PawPrint className="mx-auto h-9 w-9 fill-paw-pink/20 text-paw-pink" />
+            <h2 className="mt-3 text-lg font-black text-paw-ink">No memes yet.</h2>
+            <p className="mx-auto mt-2 max-w-[260px] text-sm font-bold leading-relaxed text-paw-cocoa/70">
+              Uploaded memes from PawPals will appear here.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {showAddStory ? (
@@ -892,6 +1055,14 @@ export default function StoriesPage() {
         </div>
       ) : null}
 
+      <Link
+        href="/upload-meme"
+        className="fixed bottom-[92px] right-5 z-50 grid h-16 w-16 place-items-center rounded-full bg-paw-pink text-white shadow-[0_16px_34px_rgba(247,101,137,0.36)] ring-4 ring-white/85 transition active:scale-95 md:right-[calc(50%-200px)]"
+        aria-label="Upload meme"
+      >
+        <Plus size={34} strokeWidth={3} />
+      </Link>
+
       {commentPost ? (
         <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-w-[430px] rounded-t-[28px] bg-paw-cream p-5 shadow-paw">
           <div className="mb-4 flex items-center justify-between">
@@ -901,11 +1072,20 @@ export default function StoriesPage() {
             </button>
           </div>
           <div className="mb-4 max-h-44 space-y-3 overflow-y-auto">
-            {(commentsByPost[commentPost.id] ?? []).map((comment, index) => (
-              <p key={`${comment}-${index}`} className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa">
-                {comment}
-              </p>
+            {commentLoadingPostId === commentPost.id ? (
+              <p className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa/70">Loading comments...</p>
+            ) : null}
+            {(commentsByPost[commentPost.id] ?? []).map((comment) => (
+              <div key={comment.id} className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-paw-cocoa">
+                {comment.author ? (
+                  <p className="mb-1 font-black text-paw-ink">@{comment.author.username}</p>
+                ) : null}
+                <p className="font-bold">{comment.text}</p>
+              </div>
             ))}
+            {commentLoadingPostId !== commentPost.id && !(commentsByPost[commentPost.id] ?? []).length ? (
+              <p className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-paw-cocoa/70">No comments yet.</p>
+            ) : null}
           </div>
           <form onSubmit={submitComment} className="flex gap-2">
             <input
@@ -914,7 +1094,7 @@ export default function StoriesPage() {
               className="paw-input h-11 min-w-0 flex-1 rounded-xl px-4 text-sm font-bold"
               placeholder="Add a comment..."
             />
-            <button type="submit" className="grid h-11 w-11 place-items-center rounded-xl bg-paw-pink text-white" aria-label="Send comment">
+            <button type="submit" disabled={isSubmittingComment || !commentText.trim()} className="grid h-11 w-11 place-items-center rounded-xl bg-paw-pink text-white disabled:opacity-55" aria-label="Send comment">
               <Send size={18} />
             </button>
           </form>
@@ -933,19 +1113,17 @@ export default function StoriesPage() {
             <div className="grid gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setStatus(`Viewing ${optionsPost.user}'s profile`);
-                  setOptionsPost(null);
-                }}
+                onClick={() => copyPostLink(optionsPost)}
                 className="h-11 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa"
               >
-                View Profile
-              </button>
-              <button type="button" onClick={() => copyPostLink(optionsPost)} className="h-11 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
                 Copy Link
               </button>
-              <button type="button" onClick={() => { setStatus("Post reported"); setOptionsPost(null); }} className="h-11 rounded-xl bg-white/70 text-sm font-extrabold text-paw-cocoa">
-                Report Post
+              <button
+                type="button"
+                onClick={() => void deleteMeme(optionsPost)}
+                className="h-11 rounded-xl bg-paw-pink text-sm font-extrabold text-white shadow-soft"
+              >
+                Delete Meme
               </button>
             </div>
           </div>

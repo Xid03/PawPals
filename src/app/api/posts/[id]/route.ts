@@ -29,12 +29,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         author: { select: { id: true, name: true, username: true, avatarUrl: true, isPrivate: true } },
         images: true,
         comments: { include: { author: { select: { id: true, name: true, username: true, avatarUrl: true } } } },
+        likes: authId ? { where: { userId: authId }, select: { id: true } } : false,
         saves: authId ? { where: { userId: authId }, select: { id: true } } : false,
         _count: { select: { likes: true, comments: true, saves: true } }
       }
     });
     if (!post) throw new ApiRouteError(404, "NOT_FOUND", "Post not found");
-    return ok({ post: { ...post, savedByMe: "saves" in post && Array.isArray(post.saves) ? post.saves.length > 0 : false } });
+    return ok({
+      post: {
+        ...post,
+        likedByMe: "likes" in post && Array.isArray(post.likes) ? post.likes.length > 0 : false,
+        savedByMe: "saves" in post && Array.isArray(post.saves) ? post.saves.length > 0 : false
+      }
+    });
   } catch (error) {
     return handleRouteError(error);
   }

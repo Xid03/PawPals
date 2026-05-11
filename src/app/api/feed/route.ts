@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       include: {
         author: { select: { id: true, name: true, username: true, avatarUrl: true, isPrivate: true } },
         images: true,
+        likes: { where: { userId: auth.id }, select: { id: true } },
         saves: { where: { userId: auth.id }, select: { id: true } },
         _count: { select: { likes: true, comments: true, saves: true } }
       },
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
           : { createdAt: "desc" }
     });
 
-    return paginated(posts.map((post) => ({ ...post, savedByMe: post.saves.length > 0 })), page);
+    return paginated(posts.map((post) => ({ ...post, likedByMe: post.likes.length > 0, savedByMe: post.saves.length > 0 })), page);
   } catch (error) {
     return handleRouteError(error);
   }

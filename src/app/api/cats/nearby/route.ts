@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { NextRequest } from "next/server";
 import { prisma } from "@/server/prisma";
+import { getTokenFromRequest, verifyAuthToken } from "@/server/auth";
 import { getPagination } from "@/server/pagination";
 import { paginated, handleRouteError } from "@/server/responses";
 
@@ -50,15 +51,34 @@ function catLocation(cat: { latitude: number | null; longitude: number | null; c
   return cityCoordinates[cat.city.toLowerCase()] ?? null;
 }
 
+async function optionalAuthId(request: NextRequest) {
+  const token = getTokenFromRequest(request);
+  if (!token) return null;
+
+  try {
+    return (await verifyAuthToken(token)).id;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const authId = await optionalAuthId(request);
     const page = getPagination(request.nextUrl.searchParams);
     const city = request.nextUrl.searchParams.get("city") ?? undefined;
     const latitude = numberParam(request.nextUrl.searchParams.get("lat"));
     const longitude = numberParam(request.nextUrl.searchParams.get("lng"));
     const maxKm = numberParam(request.nextUrl.searchParams.get("radiusKm")) ?? 50;
+    const strictRadius = request.nextUrl.searchParams.get("strictRadius") === "true";
     const cats = await prisma.catProfile.findMany({
-      where: city ? { city: { contains: city, mode: "insensitive" } } : {},
+      where: {
+        ...(city ? { city: { contains: city, mode: "insensitive" } } : {}),
+        ...(authId ? { ownerId: { not: authId } } : {}),
+        NOT: {
+          owner: { email: { endsWith: "@pawpals.test" } }
+        }
+      },
       include: { photos: true, owner: { select: { id: true, name: true, username: true, avatarUrl: true } } },
       orderBy: { createdAt: "desc" }
     });
@@ -80,7 +100,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
 
     const nearby = withDistance.filter((cat) => cat.distanceKm !== null && cat.distanceKm <= maxKm);
-    const results = nearby.length ? nearby : withDistance;
+    const results = strictRadius ? nearby : nearby.length ? nearby : withDistance;
 
     return paginated(results.slice(page.skip, page.skip + page.take), { ...page, total: results.length });
   } catch (error) {

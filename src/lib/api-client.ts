@@ -42,6 +42,7 @@ export type ApiPost = {
   createdAt: string;
   author: PublicUser;
   images?: { url: string }[];
+  likedByMe?: boolean;
   savedByMe?: boolean;
   _count?: {
     likes: number;

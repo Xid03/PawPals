@@ -8,7 +8,6 @@ import { BottomNav } from "@/components/BottomNav";
 import { useCurrentUser } from "@/components/CurrentUserProvider";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, clearGuestMode, clearToken, isGuestMode, requireSignedIn, type ApiPost, type PublicUser } from "@/lib/api-client";
-import { currentUser } from "@/data/mockData";
 import homepageImage from "../../../images/homepage.png";
 import profile1 from "../../../images/profile1.png";
 import profileBg from "../../../images/profileBg.png";
@@ -27,6 +26,8 @@ type FollowRequest = {
   requester: PublicUser;
   createdAt: string;
 };
+
+const FOLLOW_REQUEST_ACCEPTED_EVENT = "pawpals:follow-request-accepted";
 
 type ProfileStory = {
   id: string;
@@ -51,7 +52,7 @@ function sortStoriesByUploadTime<T extends { createdAt: string }>(stories: T[]) 
 }
 
 const profileActions = [
-  { label: "My PawPals", panel: "followers" as const, icon: Users, bubble: "bg-[#eee4ff] text-paw-lavender" },
+  { label: "My PawPals", href: "/my-pawpals", icon: Users, bubble: "bg-[#eee4ff] text-paw-lavender" },
   { label: "Saved Posts", panel: "saved" as const, icon: Bookmark, bubble: "bg-[#ffe1ec] text-paw-pink" },
   { label: "Notifications", panel: "notifications" as const, icon: Bell, bubble: "bg-[#eee4ff] text-paw-lavender" },
   { label: "Settings", panel: "settings" as const, icon: Settings, bubble: "bg-[#dcf5df] text-[#47c95a]" }
@@ -63,8 +64,8 @@ export default function UserProfilePage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("");
   const [user, setUser] = useState<PublicUser | null>(initialUser);
-  const [name, setName] = useState(initialUser?.name || currentUser.name);
-  const [username, setUsername] = useState(initialUser?.username || "catlover");
+  const [name, setName] = useState(initialUser?.name || "");
+  const [username, setUsername] = useState(initialUser?.username || "");
   const [city, setCity] = useState(initialUser?.city ?? "");
   const [bio, setBio] = useState(initialUser?.bio ?? "");
   const [isPrivate, setIsPrivate] = useState(initialUser?.isPrivate ?? false);
@@ -72,7 +73,7 @@ export default function UserProfilePage() {
   const [activePanel, setActivePanel] = useState<ProfilePanel>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [guest, setGuest] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(initialUser?.avatarUrl || currentUser.catAvatar);
+  const [avatarPreview, setAvatarPreview] = useState(initialUser?.avatarUrl || profileIcon.src);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [stats, setStats] = useState<ProfileStats>({ posts: 0, followers: 0, following: 0 });
   const [profilePosts, setProfilePosts] = useState<ApiPost[]>([]);
@@ -115,15 +116,15 @@ export default function UserProfilePage() {
         setCity(data.user.city ?? "");
         setBio(data.user.bio ?? "");
         setIsPrivate(data.user.isPrivate ?? false);
-        setAvatarPreview(data.user.avatarUrl ?? currentUser.catAvatar);
+        setAvatarPreview(data.user.avatarUrl ?? profileIcon.src);
         void loadProfileData(data.user.id);
       })
       .catch(() => undefined);
   }, [setCurrentUser]);
 
   const displayName = guest ? "Guest" : user?.name ?? name;
-  const displayRole = guest ? "Browsing PawPals" : user ? `@${user.username}` : currentUser.role;
-  const avatar = user?.avatarUrl ?? currentUser.catAvatar;
+  const displayRole = guest ? "Browsing PawPals" : user ? `@${user.username}` : "";
+  const avatar = user?.avatarUrl ?? profileIcon.src;
   const activeStory = activeStoryIndex === null ? null : stories[activeStoryIndex] ?? null;
   const activePanelTitle =
     activePanel === "posts"
@@ -174,7 +175,7 @@ export default function UserProfilePage() {
     try {
       requireSignedIn();
       setActivePanel(null);
-      setAvatarPreview(user?.avatarUrl ?? currentUser.catAvatar);
+      setAvatarPreview(user?.avatarUrl ?? profileIcon.src);
       setAvatarFile(null);
       setShowEdit(true);
       setStatus("");
@@ -403,12 +404,17 @@ export default function UserProfilePage() {
 
   async function answerFollowRequest(requestId: string, action: "approve" | "reject") {
     try {
-      const data = await apiFetch<{ following: boolean }>(`/api/follow-requests/${requestId}/${action}`, {
+      const data = await apiFetch<{ following: boolean; request?: { requesterId?: string } }>(`/api/follow-requests/${requestId}/${action}`, {
         method: "POST"
       });
       setFollowRequests((current) => current.filter((request) => request.id !== requestId));
       if (data.following) {
         setStats((current) => ({ ...current, followers: current.followers + 1 }));
+      }
+      if (action === "approve" && data.request?.requesterId) {
+        window.dispatchEvent(
+          new CustomEvent(FOLLOW_REQUEST_ACCEPTED_EVENT, { detail: { requesterId: data.request.requesterId } })
+        );
       }
       setStatus(action === "approve" ? "Follow request approved" : "Follow request rejected");
     } catch (error) {
@@ -539,7 +545,13 @@ export default function UserProfilePage() {
               <button
                 key={item.label}
                 type="button"
-                onClick={() => openPanel(item.panel)}
+                onClick={() => {
+                  if ("href" in item && typeof item.href === "string") {
+                    router.push(item.href);
+                    return;
+                  }
+                  openPanel(item.panel);
+                }}
                 className={`flex h-[52px] w-full items-center gap-3 px-4 text-left ${
                   index !== profileActions.length - 1 ? "border-b border-paw-cocoa/10" : ""
                 }`}
@@ -914,7 +926,7 @@ export default function UserProfilePage() {
                       onClick={() => router.push(`/users/${person.id}`)}
                       className="flex min-h-20 items-center gap-4 rounded-2xl bg-white/76 px-4 py-3 text-left shadow-[0_10px_22px_rgba(122,81,63,0.07)]"
                     >
-                      <img src={person.avatarUrl ?? currentUser.catAvatar} alt={person.name} className="h-14 w-14 rounded-full object-cover ring-4 ring-white" />
+                      <img src={person.avatarUrl ?? profileIcon.src} alt={person.name} className="h-14 w-14 rounded-full object-cover ring-4 ring-white" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-lg font-black text-paw-cocoa">{person.name}</span>
                         <span className="mt-1 block truncate text-sm font-bold text-paw-cocoa/65">@{person.username}</span>
@@ -953,6 +965,10 @@ export default function UserProfilePage() {
                 <CalendarCheck size={24} className="text-paw-pink" />
                 View Saved Events
               </button>
+              <button type="button" onClick={() => router.push("/saved-memes")} className="inline-flex h-16 items-center justify-center gap-3 rounded-[24px] bg-white/80 text-lg font-black text-paw-cocoa shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
+                <ImageIcon size={24} className="text-paw-pink" />
+                View Saved Memes
+              </button>
             </div>
           ) : null}
 
@@ -967,7 +983,7 @@ export default function UserProfilePage() {
                 <div key={request.id} className="rounded-2xl bg-white/76 px-4 py-3 shadow-[0_10px_22px_rgba(122,81,63,0.07)]">
                   <div className="flex items-center gap-3">
                     <img
-                      src={request.requester.avatarUrl ?? currentUser.catAvatar}
+                      src={request.requester.avatarUrl ?? profileIcon.src}
                       alt={request.requester.username}
                       className="h-12 w-12 rounded-full object-cover ring-4 ring-white"
                     />

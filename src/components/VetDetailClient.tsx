@@ -6,7 +6,6 @@ import { ArrowLeft, Globe, Heart, MapPin, Phone, ShieldPlus, Star } from "lucide
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiVet } from "@/lib/api-client";
 import { vetPlaceholderImage } from "@/lib/vet-images";
-import { vets as mockVets } from "@/data/mockData";
 
 function serviceLabel(type: string) {
   return type
@@ -17,30 +16,69 @@ function serviceLabel(type: string) {
 }
 
 export function VetDetailClient({ id }: { id: string }) {
-  const fallback = mockVets.find((item) => item.id === id) ?? mockVets[0];
   const [vet, setVet] = useState<ApiVet | null>(null);
   const [status, setStatus] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     apiFetch<{ vet: ApiVet }>(`/api/vets/${id}`)
       .then((data) => setVet(data.vet))
-      .catch(() => undefined);
+      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load vet details."))
+      .finally(() => setIsLoading(false));
   }, [id]);
 
+  if (isLoading) {
+    return (
+      <section className="min-h-screen bg-paw-cream pb-7">
+        <div className="relative h-56 overflow-hidden rounded-b-[2rem] bg-paw-blush">
+          <Link href="/vets" className="absolute left-5 top-6 grid h-10 w-10 place-items-center rounded-full bg-white/75 text-paw-ink" aria-label="Go back">
+            <ArrowLeft size={20} />
+          </Link>
+        </div>
+        <div className="space-y-4 px-5 pt-5">
+          <div className="h-6 w-44 animate-pulse rounded-full bg-paw-blush" />
+          <div className="h-4 w-56 animate-pulse rounded-full bg-paw-blush/80" />
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-11 animate-pulse rounded-2xl bg-paw-lilac" />
+            ))}
+          </div>
+          <div className="h-5 w-20 animate-pulse rounded-full bg-paw-blush" />
+          <div className="h-4 w-full animate-pulse rounded-full bg-paw-blush/70" />
+        </div>
+      </section>
+    );
+  }
+
+  if (!vet) {
+    return (
+      <section className="min-h-screen bg-paw-cream px-5 pb-7 pt-6">
+        <StatusToast message={status} onDismiss={() => setStatus("")} />
+        <Link href="/vets" className="grid h-10 w-10 place-items-center rounded-full bg-white/75 text-paw-ink" aria-label="Go back">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="mt-20 rounded-[28px] bg-white/80 p-6 text-center shadow-soft">
+          <h1 className="text-2xl font-black text-paw-ink">Clinic not found</h1>
+          <p className="mt-2 text-sm font-bold text-paw-cocoa/70">This vet profile may have been removed.</p>
+        </div>
+      </section>
+    );
+  }
+
   const display = {
-    name: vet?.name ?? fallback.name,
-    image: vet?.imageUrl ?? vetPlaceholderImage({ id, name: vet?.name ?? fallback.name, city: vet?.city ?? fallback.distance }),
-    address: vet?.address ?? fallback.distance,
-    distance: vet?.city ?? fallback.distance,
-    rating: vet?.rating ?? fallback.rating,
-    reviews: vet?._count?.favorites ?? fallback.reviews,
-    status: vet?.isOpen === false ? "Closed" : "Open",
-    closes: vet?.openHours ?? fallback.closes,
-    about: vet?.description ?? fallback.about,
-    phone: fallback.phone,
-    website: fallback.website,
-    services: vet?.services?.map((service) => serviceLabel(service.type)) ?? fallback.services.map((service) => service.label)
+    name: vet.name,
+    image: vet.imageUrl ?? vetPlaceholderImage({ id, name: vet.name, city: vet.city }),
+    address: vet.address,
+    distance: vet.city,
+    rating: vet.rating,
+    reviews: vet._count?.favorites ?? 0,
+    status: vet.isOpen === false ? "Closed" : "Open",
+    closes: vet.openHours ?? "",
+    about: vet.description ?? "No extra details have been added for this clinic yet.",
+    phone: "",
+    website: null as string | null,
+    services: vet.services?.map((service) => serviceLabel(service.type)) ?? []
   };
   const isGoogleLogo = display.image.includes("google.com/s2/favicons");
   const showImage = Boolean(display.image) && !imageFailed;

@@ -7,10 +7,13 @@ import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import { TagChip } from "@/components/TagChip";
 import { apiFetch, requireSignedIn, type ApiHealthTip } from "@/lib/api-client";
-import { healthTipCategories } from "@/data/mockData";
+import behaviourIcon from "../../images/behaviourIcon.png";
 import catDoctorImage from "../../images/catDoctor.png";
+import groomingIcon from "../../images/groomingIcon.png";
+import healthyIcon from "../../images/healthyIcon.png";
 import homepageImage from "../../images/homepage.png";
 import tipIcon from "../../images/tipIcon.png";
+import vetIcon from "../../images/vetIcon.png";
 
 type HealthTipView = {
   id?: string;
@@ -22,42 +25,11 @@ type HealthTipView = {
   color: string;
 };
 
-const fallbackTipDetails: Record<string, string> = {
-  "Healthy Nutrition":
-    "Offer balanced meals, avoid sudden food changes, and keep treats small. If your cat has a health condition, ask a vet before changing diets.",
-  "Grooming Essentials":
-    "Use short, calm brushing sessions and reward your cat after each one. Stop before your cat gets frustrated so grooming stays positive.",
-  "Understanding Behavior":
-    "Slow blinks, relaxed tails, and gentle head bumps are friendly signals. Hiding, flattened ears, or sudden aggression can mean stress or pain.",
-  "Preventive Care":
-    "Regular checkups, vaccines, parasite prevention, and dental checks help catch small problems before they become urgent."
-};
-
-const fallbackDailyTips: HealthTipView[] = [
-  {
-    title: "Keep your cat hydrated!",
-    description: "Fresh water helps support healthy kidneys and digestion.",
-    body: "Refresh water at least daily, wash bowls often, and consider a fountain if your cat prefers moving water.",
-    category: "WELLNESS",
-    icon: healthTipCategories[0].icon,
-    color: healthTipCategories[0].color
-  },
-  {
-    title: "Brush a little today",
-    description: "Short grooming sessions help reduce shedding and hairballs.",
-    body: "Brush gently for a few minutes, then reward your cat. Short sessions are easier to repeat and help grooming feel calm.",
-    category: "GROOMING",
-    icon: healthTipCategories[1].icon,
-    color: healthTipCategories[1].color
-  },
-  {
-    title: "Watch the litter box",
-    description: "Changes in toilet habits can be an early health signal.",
-    body: "Notice changes in frequency, smell, color, or straining. If anything feels unusual, contact a vet early.",
-    category: "PREVENTIVE_CARE",
-    icon: healthTipCategories[3].icon,
-    color: healthTipCategories[3].color
-  }
+const healthTipCategories = [
+  { title: "Nutrition", icon: healthyIcon.src, color: "bg-[#DFF4C7]" },
+  { title: "Grooming", icon: groomingIcon.src, color: "bg-paw-lilac" },
+  { title: "Behavior", icon: behaviourIcon.src, color: "bg-paw-blush" },
+  { title: "Preventive Care", icon: vetIcon.src, color: "bg-[#DDECFF]" }
 ];
 
 export function HealthTipsClient() {
@@ -70,6 +42,7 @@ export function HealthTipsClient() {
   const [selectedTip, setSelectedTip] = useState<HealthTipView | null>(null);
   const [status, setStatus] = useState("");
   const [isFindingVets, setIsFindingVets] = useState(false);
+  const [isLoadingTips, setIsLoadingTips] = useState(true);
 
   useEffect(() => {
     apiFetch<{ tip: ApiHealthTip | null }>("/api/health-tips/daily")
@@ -77,7 +50,8 @@ export function HealthTipsClient() {
       .catch(() => undefined);
     apiFetch<ApiHealthTip[]>("/api/health-tips?limit=10")
       .then((items) => setTips(items))
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setIsLoadingTips(false));
   }, []);
 
   function mapApiTip(tip: ApiHealthTip, index: number): HealthTipView {
@@ -118,7 +92,6 @@ export function HealthTipsClient() {
       ...tips.filter((tip) => tip.id !== daily?.id)
     ].slice(0, 3);
 
-    if (!apiDailyTips.length) return fallbackDailyTips;
     return apiDailyTips.map(mapApiTip);
   }, [daily, tips]);
 
@@ -138,26 +111,11 @@ export function HealthTipsClient() {
     return () => window.clearInterval(timer);
   }, [dailyTipViews.length]);
 
-  const activeDailyTip = dailyTipViews[dailyIndex] ?? fallbackDailyTips[0];
+  const activeDailyTip = dailyTipViews[dailyIndex] ?? null;
 
   const displayedTips = useMemo<HealthTipView[]>(() => {
-    const source = tips.length ? tips : healthTipCategories;
     const normalized = query.trim().toLowerCase();
-    return source.map((tip, index) => {
-      const isApiTip = "body" in tip;
-      const title = tip.title;
-      const description = isApiTip ? tip.body : tip.description;
-      const category = isApiTip ? tip.category : tip.title;
-      return {
-        id: isApiTip ? tip.id : undefined,
-        title,
-        description,
-        body: isApiTip ? tip.body : fallbackTipDetails[tip.title] ?? tip.description,
-        category,
-        icon: isApiTip ? healthTipCategories[index % healthTipCategories.length].icon : tip.icon,
-        color: isApiTip ? healthTipCategories[index % healthTipCategories.length].color : tip.color
-      };
-    }).filter((tip) => {
+    return tips.map(mapApiTip).filter((tip) => {
       const matchesSearch =
         !normalized ||
         [tip.title, tip.description, tip.category].some((value) => value.toLowerCase().includes(normalized));
@@ -222,17 +180,25 @@ export function HealthTipsClient() {
       <StatusToast message={status} onDismiss={() => setStatus("")} />
       <h2 className="mb-3 flex items-center gap-2 text-[21px] font-black">Daily Tip <Sparkles className="text-[#F7B744]" size={20} /></h2>
       <section className="relative mb-5 overflow-hidden rounded-[20px] border border-[#F7B744]/40 bg-[#FFF1CB] p-5 shadow-soft">
-        <div className="relative z-10 max-w-[58%]">
-          <h3 className="text-xl font-black">{activeDailyTip.title}</h3>
-          <p className="mt-3 text-base font-extrabold leading-snug text-paw-cocoa">{activeDailyTip.description}</p>
-          <button
-            type="button"
-            onClick={() => setSelectedTip(activeDailyTip)}
-            className="mt-5 inline-flex h-11 w-32 items-center justify-center rounded-xl bg-gradient-to-r from-[#FFB23F] to-[#FF9D43] text-sm font-extrabold text-white shadow-soft"
-          >
-            Learn More
-          </button>
-        </div>
+        {activeDailyTip ? (
+          <div className="relative z-10 max-w-[58%]">
+            <h3 className="text-xl font-black">{activeDailyTip.title}</h3>
+            <p className="mt-3 text-base font-extrabold leading-snug text-paw-cocoa">{activeDailyTip.description}</p>
+            <button
+              type="button"
+              onClick={() => setSelectedTip(activeDailyTip)}
+              className="mt-5 inline-flex h-11 w-32 items-center justify-center rounded-xl bg-gradient-to-r from-[#FFB23F] to-[#FF9D43] text-sm font-extrabold text-white shadow-soft"
+            >
+              Learn More
+            </button>
+          </div>
+        ) : (
+          <div className="relative z-10 max-w-[70%]">
+            <div className="h-6 w-32 animate-pulse rounded-full bg-white/60" />
+            <div className="mt-4 h-4 w-full animate-pulse rounded-full bg-white/55" />
+            <div className="mt-2 h-4 w-4/5 animate-pulse rounded-full bg-white/45" />
+          </div>
+        )}
         <img src={homepageImage.src} alt="" className="absolute bottom-3 right-3 h-36 w-36 object-cover" />
       </section>
       <div className="mb-5 flex justify-center gap-3">
@@ -249,6 +215,19 @@ export function HealthTipsClient() {
       </div>
       <h2 className="mb-3 text-[21px] font-black">Explore Tips</h2>
       <section className="paw-card overflow-hidden rounded-[20px]">
+        {isLoadingTips && !displayedTips.length ? (
+          <div className="space-y-3 p-4">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center gap-4">
+                <div className="h-[58px] w-[58px] animate-pulse rounded-2xl bg-paw-blush" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-5 w-40 animate-pulse rounded-full bg-paw-blush" />
+                  <div className="h-4 w-full animate-pulse rounded-full bg-paw-blush/70" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {displayedTips.map((tip, index) => {
           return (
             <button
@@ -268,6 +247,9 @@ export function HealthTipsClient() {
             </button>
           );
         })}
+        {!isLoadingTips && !displayedTips.length ? (
+          <p className="p-5 text-center text-sm font-black text-paw-cocoa">No health tips available yet.</p>
+        ) : null}
       </section>
       <section className="paw-card mt-8 flex items-center overflow-hidden rounded-[20px] border-paw-lavender/30 bg-paw-lilac/80 p-5">
         <div className="min-w-0 flex-1">

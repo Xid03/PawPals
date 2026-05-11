@@ -23,6 +23,7 @@ type IncomingFollowRequest = {
 type ConnectionPanel = "followers" | "following" | null;
 
 const FOLLOW_BACK_EVENT = "pawpals:follow-back";
+const FOLLOW_REQUEST_ACCEPTED_EVENT = "pawpals:follow-request-accepted";
 
 export function PublicProfileClient({ id }: { id: string }) {
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -40,6 +41,22 @@ export function PublicProfileClient({ id }: { id: string }) {
   const [activeConnectionPanel, setActiveConnectionPanel] = useState<ConnectionPanel>(null);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
 
+  function applyRelationshipState(data: {
+    isFollowing: boolean;
+    isFollowedByViewedUser: boolean;
+    followRequestStatus: string | null;
+    incomingFollowRequest: IncomingFollowRequest | null;
+    canViewPrivate: boolean;
+    stats?: ProfileStats;
+  }) {
+    setIsFollowing(data.isFollowing);
+    setIsFollowedByViewedUser(data.isFollowedByViewedUser);
+    setFollowRequestStatus(data.followRequestStatus);
+    setIncomingFollowRequest(data.incomingFollowRequest);
+    setCanViewPrivate(data.canViewPrivate);
+    if (data.stats) setStats(data.stats);
+  }
+
   useEffect(() => {
     apiFetch<{
       user: PublicUser;
@@ -55,11 +72,7 @@ export function PublicProfileClient({ id }: { id: string }) {
         setUser(data.user);
         setCats(data.cats);
         setStats(data.stats);
-        setIsFollowing(data.isFollowing);
-        setIsFollowedByViewedUser(data.isFollowedByViewedUser);
-        setFollowRequestStatus(data.followRequestStatus);
-        setIncomingFollowRequest(data.incomingFollowRequest);
-        setCanViewPrivate(data.canViewPrivate);
+        applyRelationshipState(data);
         if (!data.canViewPrivate) {
           setPosts([]);
           setFollowers([]);
@@ -85,13 +98,9 @@ export function PublicProfileClient({ id }: { id: string }) {
     if (followRequestStatus !== "PENDING") return;
 
     const timer = window.setInterval(() => {
-      apiFetch<{ isFollowing: boolean; isFollowedByViewedUser: boolean; followRequestStatus: string | null; incomingFollowRequest: IncomingFollowRequest | null; canViewPrivate: boolean }>(`/api/users/${id}`)
+          apiFetch<{ isFollowing: boolean; isFollowedByViewedUser: boolean; followRequestStatus: string | null; incomingFollowRequest: IncomingFollowRequest | null; canViewPrivate: boolean }>(`/api/users/${id}`)
         .then((data) => {
-          setIsFollowing(data.isFollowing);
-          setIsFollowedByViewedUser(data.isFollowedByViewedUser);
-          setFollowRequestStatus(data.followRequestStatus);
-          setIncomingFollowRequest(data.incomingFollowRequest);
-          setCanViewPrivate(data.canViewPrivate);
+          applyRelationshipState(data);
           if (data.isFollowing) {
             setStatus("Follow request approved.");
           }
@@ -102,15 +111,42 @@ export function PublicProfileClient({ id }: { id: string }) {
     return () => window.clearInterval(timer);
   }, [followRequestStatus, id]);
 
+  useEffect(() => {
+    function handleFollowRequestAccepted(event: Event) {
+      const detail = (event as CustomEvent<{ requesterId?: string }>).detail;
+      if (detail?.requesterId !== id) return;
+
+      apiFetch<{
+        stats: ProfileStats;
+        isFollowing: boolean;
+        isFollowedByViewedUser: boolean;
+        followRequestStatus: string | null;
+        incomingFollowRequest: IncomingFollowRequest | null;
+        canViewPrivate: boolean;
+      }>(`/api/users/${id}`)
+        .then((data) => {
+          applyRelationshipState(data);
+          setStatus(data.isFollowing ? "Follow request accepted." : "Follow request accepted. You can follow back now.");
+        })
+        .catch(() => {
+          setIncomingFollowRequest(null);
+          setIsFollowedByViewedUser(true);
+        });
+    }
+
+    window.addEventListener(FOLLOW_REQUEST_ACCEPTED_EVENT, handleFollowRequestAccepted);
+    return () => window.removeEventListener(FOLLOW_REQUEST_ACCEPTED_EVENT, handleFollowRequestAccepted);
+  }, [id]);
+
   async function toggleFollow() {
     try {
       requireSignedIn();
       if (incomingFollowRequest?.id) {
         await apiFetch(`/api/follow-requests/${incomingFollowRequest.id}/approve`, { method: "POST" });
         setIncomingFollowRequest(null);
-        setIsFollowing(true);
-        window.dispatchEvent(new CustomEvent(FOLLOW_BACK_EVENT, { detail: { userId: id, status: "following" } }));
-        setStats((current) => ({ ...current, followers: current.followers + 1 }));
+        setIsFollowedByViewedUser(true);
+        window.dispatchEvent(new CustomEvent(FOLLOW_REQUEST_ACCEPTED_EVENT, { detail: { requesterId: id } }));
+        setStats((current) => ({ ...current, following: current.following + 1 }));
         setStatus("Follow request accepted.");
         return;
       }
@@ -149,11 +185,11 @@ export function PublicProfileClient({ id }: { id: string }) {
     }
     try {
       requireSignedIn();
-      await apiFetch("/api/conversations", {
+      const data = await apiFetch<{ conversation: { id: string } }>("/api/conversations", {
         method: "POST",
         body: JSON.stringify({ userId: id })
       });
-      window.location.href = "/chats";
+      window.location.href = `/chats?conversationId=${encodeURIComponent(data.conversation.id)}`;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not start chat");
     }

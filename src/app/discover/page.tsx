@@ -1,12 +1,19 @@
 import { DiscoverClient } from "@/components/DiscoverClient";
 import type { ApiCat } from "@/lib/api-client";
+import { getCurrentUserFromCookie } from "@/server/current-user";
 import { prisma } from "@/server/prisma";
 
 export const dynamic = "force-dynamic";
 
-async function getInitialCats(): Promise<ApiCat[]> {
+async function getInitialCats(currentUserId?: string): Promise<ApiCat[]> {
   try {
     const cats = await prisma.catProfile.findMany({
+      where: {
+        ...(currentUserId ? { ownerId: { not: currentUserId } } : {}),
+        NOT: {
+          owner: { email: { endsWith: "@pawpals.test" } }
+        }
+      },
       take: 20,
       include: {
         photos: { select: { url: true } },
@@ -34,6 +41,7 @@ async function getInitialCats(): Promise<ApiCat[]> {
 }
 
 export default async function DiscoverPage() {
-  const initialCats = await getInitialCats();
+  const currentUser = await getCurrentUserFromCookie();
+  const initialCats = await getInitialCats(currentUser?.id);
   return <DiscoverClient initialCats={initialCats} />;
 }
