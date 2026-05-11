@@ -77,7 +77,7 @@ export function VetDetailClient({ id }: { id: string }) {
     closes: vet.openHours ?? "",
     about: vet.description ?? "No extra details have been added for this clinic yet.",
     phone: "",
-    website: null as string | null,
+    website: vet.websiteUrl ?? null,
     services: vet.services?.map((service) => serviceLabel(service.type)) ?? []
   };
   const isGoogleLogo = display.image.includes("google.com/s2/favicons");
@@ -106,7 +106,11 @@ export function VetDetailClient({ id }: { id: string }) {
     const url =
       action === "directions"
         ? `https://www.google.com/maps/search/?api=1&query=${query}`
-        : display.website ?? `https://www.google.com/search?q=${query}`;
+        : display.website;
+    if (!url) {
+      setStatus("Website is not available for this clinic yet.");
+      return;
+    }
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -156,15 +160,16 @@ export function VetDetailClient({ id }: { id: string }) {
           {[
             { label: "Call", icon: Phone, action: "call" as const },
             { label: "Directions", icon: MapPin, action: "directions" as const },
-            { label: "Website", icon: Globe, action: "website" as const }
+            { label: "Website", icon: Globe, action: "website" as const, disabled: !display.website }
           ].map((action) => {
             const Icon = action.icon;
             return (
               <button
                 key={action.label}
                 type="button"
+                disabled={action.disabled}
                 onClick={() => openVetAction(action.action)}
-                className="inline-flex h-11 items-center justify-center gap-1 rounded-2xl bg-paw-lavender px-3 text-xs font-extrabold text-white shadow-soft"
+                className="inline-flex h-11 items-center justify-center gap-1 rounded-2xl bg-paw-lavender px-3 text-xs font-extrabold text-white shadow-soft disabled:cursor-not-allowed disabled:bg-paw-cocoa/25 disabled:text-paw-cocoa/50"
               >
                 <Icon size={15} />
                 {action.label}

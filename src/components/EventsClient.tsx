@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bookmark, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, ImagePlus, MapPin, PawPrint, Search, Send, Tag, X } from "lucide-react";
+import { ArrowLeft, Bookmark, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, ImagePlus, MapPin, PawPrint, Search, Send, Tag, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiEvent } from "@/lib/api-client";
@@ -339,7 +339,15 @@ export function EventsClient() {
     <section className="min-h-screen bg-[#fff8f2] px-3 pb-24 pt-3">
       <div className="mx-auto max-w-[430px] rounded-[28px] bg-[#fff2ee]/84 px-4 pb-5 pt-6 shadow-[0_14px_42px_rgba(137,91,77,0.075)]">
         <header className="relative mb-5 flex items-center justify-center gap-3 pt-5">
-          <PawPrint className="absolute left-1 top-1 h-16 w-16 rotate-[-8deg] fill-paw-rose/10 text-paw-rose/10" />
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="absolute left-0 top-0 z-10 grid h-12 w-12 place-items-center rounded-full bg-white/85 text-[#8a6760] shadow-[0_10px_24px_rgba(137,91,77,0.09)] transition hover:-translate-x-0.5 hover:bg-white active:scale-95"
+            aria-label="Go back"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <PawPrint className="absolute left-10 top-1 h-16 w-16 rotate-[-8deg] fill-paw-rose/10 text-paw-rose/10" />
           <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />
           <h1 className="text-[34px] font-black leading-none text-[#2f292d] drop-shadow-sm">{isSavedMode ? "Saved Events" : "Events"}</h1>
           <PawPrint className="h-7 w-7 fill-paw-pink/45 text-paw-pink" />

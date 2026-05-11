@@ -12,7 +12,8 @@ import { z } from "zod";
 
 const postQuerySchema = z.object({
   topic: z.enum(["HEALTH", "BEHAVIOR", "FOOD", "GENERAL", "MEMES"]).optional(),
-  authorId: z.string().optional()
+  authorId: z.string().optional(),
+  q: z.string().optional()
 });
 
 async function optionalAuthId(request: NextRequest) {
@@ -36,6 +37,16 @@ export async function GET(request: NextRequest) {
     }
     const where = {
       ...(query.topic ? { topic: query.topic } : {}),
+      ...(query.q?.trim()
+        ? {
+            OR: [
+              { text: { contains: query.q.trim(), mode: "insensitive" as const } },
+              { topic: { equals: query.q.trim().toUpperCase() as never } },
+              { author: { name: { contains: query.q.trim(), mode: "insensitive" as const } } },
+              { author: { username: { contains: query.q.trim().replace(/^@/, ""), mode: "insensitive" as const } } }
+            ]
+          }
+        : {}),
       ...(query.authorId
         ? { authorId: query.authorId }
         : {

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const page = getPagination(request.nextUrl.searchParams);
     const mode = request.nextUrl.searchParams.get("mode") ?? "for-you";
     const topic = request.nextUrl.searchParams.get("topic") ?? undefined;
+    const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
     const followingIds =
       mode === "following"
@@ -28,6 +29,16 @@ export async function GET(request: NextRequest) {
         ...(topic ? { topic: topic as never } : {}),
         ...(mode === "following" ? { authorId: { in: followingIds } } : {}),
         ...(mode === "saved" ? { saves: { some: { userId: auth.id } } } : {}),
+        ...(q
+          ? {
+              OR: [
+                { text: { contains: q, mode: "insensitive" as const } },
+                { topic: { equals: q.toUpperCase() as never } },
+                { author: { name: { contains: q, mode: "insensitive" as const } } },
+                { author: { username: { contains: q.replace(/^@/, ""), mode: "insensitive" as const } } }
+              ]
+            }
+          : {}),
         author: { OR: [{ isPrivate: false }, { id: auth.id }, { followers: { some: { followerId: auth.id } } }] }
       },
       skip: page.skip,

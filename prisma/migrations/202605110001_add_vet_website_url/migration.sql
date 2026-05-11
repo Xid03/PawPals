@@ -1,0 +1,1 @@
+ALTER TABLE "Vet" ADD COLUMN "websiteUrl" TEXT;

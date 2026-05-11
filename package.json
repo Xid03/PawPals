@@ -12,8 +12,9 @@
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:vets": "tsx prisma/seed-malaysia-vets.ts",
+    "db:seed:health-tips": "tsx prisma/seed-health-tips.ts",
     "test": "vitest run",
-    "vercel-build": "prisma generate && prisma migrate deploy && npm run db:seed:vets && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && npm run db:seed:vets && npm run db:seed:health-tips && next build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -648,7 +648,7 @@ export function HomeClient({
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-black">Recent Posts</h2>
-        <Link href="/community" className="text-xs font-extrabold text-paw-cocoa/70">
+        <Link href="/stories" className="text-xs font-extrabold text-paw-cocoa/70">
           See all
         </Link>
       </div>

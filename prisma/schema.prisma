@@ -373,6 +373,7 @@ model Vet {
   name         String
   description  String?
   imageUrl     String?
+  websiteUrl   String?
   address      String
   city         String
   latitude     Float?

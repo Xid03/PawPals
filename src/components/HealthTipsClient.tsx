@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bookmark, ChevronRight, MapPin, PawPrint, Search, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Bookmark, ChevronRight, MapPin, PawPrint, Search, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
@@ -152,6 +152,14 @@ export function HealthTipsClient() {
   return (
     <section className="min-h-screen bg-paw-radial px-5 pb-28 pt-6">
       <header className="relative mb-7 flex items-center justify-center gap-5 pt-12">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="absolute left-0 top-8 grid h-12 w-12 place-items-center rounded-full bg-white/85 text-paw-cocoa shadow-soft transition hover:-translate-x-0.5 hover:bg-white active:scale-95"
+          aria-label="Go back"
+        >
+          <ArrowLeft size={22} />
+        </button>
         <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />
         <h1 className="text-[34px] font-black leading-none text-paw-ink">Health Tips</h1>
         <PawPrint className="fill-paw-rose/30 text-paw-rose" size={27} />

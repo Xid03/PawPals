@@ -146,7 +146,7 @@ export function CreatePostClient() {
             <h1 className="text-[25px] font-black text-paw-ink">
               Create Post <PawPrint size={24} className="inline -translate-y-1 fill-paw-pink/25 text-paw-pink" />
             </h1>
-            <Link href="/community" className="grid h-11 w-11 place-items-center rounded-full bg-white text-paw-pink shadow-soft" aria-label="Close">
+            <Link href="/stories" className="grid h-11 w-11 place-items-center rounded-full bg-white text-paw-pink shadow-soft" aria-label="Close">
               <X size={24} />
             </Link>
           </header>

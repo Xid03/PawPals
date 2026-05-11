@@ -47,6 +47,8 @@ const conversationFilters: { label: string; value: ConversationFilter }[] = [
   { label: "Media", value: "media" }
 ];
 
+const quickEmojis = ["😺", "😻", "🐾", "❤️", "😂", "🥰", "😸", "🙏", "✨", "🎉", "😿", "👍"];
+
 function decodeCurrentUserId() {
   const token = getToken();
   if (!token) return null;
@@ -151,6 +153,9 @@ export function ChatClient({
   const [isSavingMessageAction, setIsSavingMessageAction] = useState(false);
   const [activeStoryReply, setActiveStoryReply] = useState<StoryReplyPreview | null>(null);
   const [targetConversationId, setTargetConversationId] = useState(initialConversationId);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isAttachingImage, setIsAttachingImage] = useState(false);
   const currentUserId = initialCurrentUserId ?? currentUser?.id ?? decodeCurrentUserId();
 
   useEffect(() => {
@@ -233,12 +238,25 @@ export function ChatClient({
     return formatMessageDateLabel(latestMessage?.date);
   }, [displayMessages]);
 
+  useEffect(() => {
+    if (!conversation?.id || guestLocked) return;
+
+    const timer = window.setInterval(() => {
+      apiFetch<ApiMessage[]>(`/api/conversations/${conversation.id}/messages`)
+        .then((items) => setMessages(items))
+        .catch(() => undefined);
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [conversation?.id, guestLocked]);
+
   async function openThread(thread: ChatThread) {
     setMenuThread(null);
     setSelectedThread(thread);
     setShowAttachments(false);
     setStatus("");
     setBody("");
+    setShowEmojiPicker(false);
 
     if (thread.conversation) {
       setConversation(thread.conversation);
@@ -398,6 +416,7 @@ export function ChatClient({
       });
       setMessages((current) => [...current, data.message]);
       setBody("");
+      setShowEmojiPicker(false);
       setStatus("Message sent");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not send message");
@@ -408,6 +427,7 @@ export function ChatClient({
     if (!file) return;
     try {
       requireSignedIn();
+      if (isAttachingImage) return;
       if (!file.type.startsWith("image/")) {
         setStatus("Please choose an image file.");
         return;
@@ -418,6 +438,7 @@ export function ChatClient({
         return;
       }
 
+      setIsAttachingImage(true);
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", "chat");
@@ -431,10 +452,17 @@ export function ChatClient({
       });
       setMessages((current) => [...current, data.message]);
       setShowAttachments(false);
+      setShowEmojiPicker(false);
       setStatus("Image sent");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not attach image");
+    } finally {
+      setIsAttachingImage(false);
     }
+  }
+
+  function addEmoji(emoji: string) {
+    setBody((current) => `${current}${emoji}`);
   }
 
   function openAttachmentPicker(kind: "camera" | "image") {
@@ -784,11 +812,18 @@ export function ChatClient({
                 }`}
               >
                 {message.imageUrl ? (
-                  <img
-                    src={message.imageUrl}
-                    alt={message.text}
-                    className="mb-3 max-h-44 w-full rounded-3xl object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImageUrl(message.imageUrl ?? null)}
+                    className="mb-3 block w-full overflow-hidden rounded-3xl text-left transition active:scale-[0.99]"
+                    aria-label="View image full size"
+                  >
+                    <img
+                      src={message.imageUrl}
+                      alt={message.text}
+                      className="max-h-44 w-full object-cover"
+                    />
+                  </button>
                 ) : null}
                 {message.storyReply ? (
                   <button
@@ -987,6 +1022,35 @@ export function ChatClient({
           </div>
         </div>
       ) : null}
+      {previewImageUrl ? (
+        <div
+          onClick={() => setPreviewImageUrl(null)}
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-paw-ink/80 px-4 py-8 backdrop-blur-md transition-opacity"
+          role="presentation"
+        >
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setPreviewImageUrl(null);
+            }}
+            className="absolute right-5 top-6 z-10 grid h-12 w-12 place-items-center rounded-full bg-white/92 text-paw-cocoa shadow-soft"
+            aria-label="Close image preview"
+          >
+            <X size={26} strokeWidth={3} />
+          </button>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="relative max-h-full w-full max-w-[420px] overflow-hidden rounded-[28px] bg-white/10 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
+          >
+            <img
+              src={previewImageUrl}
+              alt="Chat attachment preview"
+              className="max-h-[82vh] w-full rounded-[22px] object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
       {selectedThread ? (
         <div className="fixed bottom-[76px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-[24px] bg-white/92 px-4 py-3 shadow-[0_-12px_28px_rgba(122,81,63,0.12)] backdrop-blur md:bottom-[100px] md:rounded-[24px]">
           <div className="flex items-center gap-2">
@@ -997,6 +1061,7 @@ export function ChatClient({
                 try {
                   requireSignedIn();
                   setShowAttachments((current) => !current);
+                  setShowEmojiPicker(false);
                 } catch (error) {
                   setStatus(error instanceof Error ? error.message : "Please log in to send attachments.");
                 }
@@ -1015,31 +1080,64 @@ export function ChatClient({
                   if (event.key === "Enter") void sendMessage();
                 }}
               />
-              <Smile size={21} className="shrink-0 text-paw-pink" />
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    requireSignedIn();
+                    setShowEmojiPicker((current) => !current);
+                    setShowAttachments(false);
+                  } catch (error) {
+                    setStatus(error instanceof Error ? error.message : "Please log in to send emojis.");
+                  }
+                }}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-paw-pink transition hover:bg-paw-blush/55"
+                aria-label="Open emoji picker"
+                aria-expanded={showEmojiPicker}
+              >
+                <Smile size={21} />
+              </button>
             </label>
             <button className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paw-pink text-white shadow-[0_10px_22px_rgba(247,101,137,0.34)]" type="button" onClick={sendMessage}>
               <PawPrint size={23} className="fill-white/20" />
             </button>
           </div>
+          {showEmojiPicker ? (
+            <div className="mt-3 grid grid-cols-6 gap-2 rounded-[22px] border border-paw-blush bg-white/88 p-3 shadow-[0_12px_28px_rgba(122,81,63,0.1)]">
+              {quickEmojis.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => addEmoji(emoji)}
+                  className="grid h-10 place-items-center rounded-2xl bg-paw-blush/45 text-xl transition hover:bg-paw-blush active:scale-95"
+                  aria-label={`Add emoji ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {showAttachments ? (
             <div className="mt-3 flex gap-3 pl-14 text-paw-cocoa">
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-full bg-white/75 px-3 py-2 text-xs font-black"
+                className="flex items-center gap-2 rounded-full bg-white/75 px-3 py-2 text-xs font-black disabled:opacity-60"
                 onClick={() => openAttachmentPicker("camera")}
+                disabled={isAttachingImage}
                 aria-label="Open camera"
               >
                 <Camera size={17} />
-                Camera
+                {isAttachingImage ? "Sending..." : "Camera"}
               </button>
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-full bg-white/75 px-3 py-2 text-xs font-black"
+                className="flex items-center gap-2 rounded-full bg-white/75 px-3 py-2 text-xs font-black disabled:opacity-60"
                 onClick={() => openAttachmentPicker("image")}
+                disabled={isAttachingImage}
                 aria-label="Choose image"
               >
                 <ImageIcon size={17} />
-                Photo
+                {isAttachingImage ? "Sending..." : "Photo"}
               </button>
             </div>
           ) : null}

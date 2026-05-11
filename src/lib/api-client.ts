@@ -56,6 +56,7 @@ export type ApiVet = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
+  websiteUrl?: string | null;
   address: string;
   city: string;
   latitude?: number | null;

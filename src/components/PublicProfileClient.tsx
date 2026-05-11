@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileText, Heart, Lock, MapPin, MessageCircle, PawPrint, UserPlus, Users, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -22,8 +22,55 @@ type IncomingFollowRequest = {
 
 type ConnectionPanel = "followers" | "following" | null;
 
+type ApiStory = {
+  id: string;
+  url: string;
+  type: "IMAGE" | "VIDEO";
+  caption?: string | null;
+  createdAt: string;
+  expiresAt: string;
+  author?: {
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl?: string | null;
+  };
+  _count?: {
+    views: number;
+  };
+  viewedByMe?: boolean;
+};
+
+type ProfileStory = {
+  id: string;
+  image: string;
+  type: "IMAGE" | "VIDEO";
+  caption: string;
+  createdAt: string;
+  expiresAt: string;
+  viewedByMe: boolean;
+  views: number;
+};
+
 const FOLLOW_BACK_EVENT = "pawpals:follow-back";
 const FOLLOW_REQUEST_ACCEPTED_EVENT = "pawpals:follow-request-accepted";
+
+function isStoryActive(story: { expiresAt: string }) {
+  return new Date(story.expiresAt).getTime() > Date.now();
+}
+
+function mapProfileStory(story: ApiStory): ProfileStory {
+  return {
+    id: story.id,
+    image: story.url,
+    type: story.type,
+    caption: story.caption ?? "Shared a new story.",
+    createdAt: story.createdAt,
+    expiresAt: story.expiresAt,
+    viewedByMe: Boolean(story.viewedByMe),
+    views: story._count?.views ?? 0
+  };
+}
 
 export function PublicProfileClient({ id }: { id: string }) {
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -40,6 +87,9 @@ export function PublicProfileClient({ id }: { id: string }) {
   const [canViewPrivate, setCanViewPrivate] = useState(true);
   const [activeConnectionPanel, setActiveConnectionPanel] = useState<ConnectionPanel>(null);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+  const [profileStories, setProfileStories] = useState<ProfileStory[]>([]);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
 
   function applyRelationshipState(data: {
     isFollowing: boolean;
@@ -58,6 +108,7 @@ export function PublicProfileClient({ id }: { id: string }) {
   }
 
   useEffect(() => {
+    setHasLoadedProfile(false);
     apiFetch<{
       user: PublicUser;
       cats: ApiCat[];
@@ -73,10 +124,12 @@ export function PublicProfileClient({ id }: { id: string }) {
         setCats(data.cats);
         setStats(data.stats);
         applyRelationshipState(data);
+        setHasLoadedProfile(true);
         if (!data.canViewPrivate) {
           setPosts([]);
           setFollowers([]);
           setFollowing([]);
+          setProfileStories([]);
           return;
         }
         Promise.all([
@@ -91,8 +144,26 @@ export function PublicProfileClient({ id }: { id: string }) {
           })
           .catch(() => undefined);
       })
-      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load profile"));
+      .catch((error) => {
+        setHasLoadedProfile(true);
+        setStatus(error instanceof Error ? error.message : "Could not load profile");
+      });
   }, [id]);
+
+  useEffect(() => {
+    if (!hasLoadedProfile || !canViewPrivate) return;
+
+    apiFetch<ApiStory[]>(`/api/stories?authorId=${id}&limit=30`)
+      .then((stories) => {
+        setProfileStories(
+          stories
+            .filter(isStoryActive)
+            .map(mapProfileStory)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        );
+      })
+      .catch(() => setProfileStories([]));
+  }, [canViewPrivate, hasLoadedProfile, id]);
 
   useEffect(() => {
     if (followRequestStatus !== "PENDING") return;
@@ -220,7 +291,22 @@ export function PublicProfileClient({ id }: { id: string }) {
     }
   }
 
+  function openProfileStories() {
+    if (!profileStories.length) return;
+    setActiveStoryIndex(0);
+  }
+
+  function moveProfileStory(direction: -1 | 1) {
+    setActiveStoryIndex((current) => {
+      if (current === null || !profileStories.length) return current;
+      return (current + direction + profileStories.length) % profileStories.length;
+    });
+  }
+
   const avatar = user?.avatarUrl || profileIcon.src;
+  const activeStory = activeStoryIndex === null ? null : profileStories[activeStoryIndex];
+  const activeStoryProgressIndex = activeStoryIndex ?? 0;
+  const hasUnviewedStories = useMemo(() => profileStories.some((story) => !story.viewedByMe), [profileStories]);
   const hasPendingFollowRequest = followRequestStatus === "PENDING";
   const hasIncomingFollowRequest = incomingFollowRequest?.status === "PENDING";
   const followButtonLabel = isFollowing
@@ -234,6 +320,15 @@ export function PublicProfileClient({ id }: { id: string }) {
           : user?.isPrivate
             ? "Request"
             : "Follow";
+
+  useEffect(() => {
+    if (!activeStory || activeStory.viewedByMe) return;
+
+    setProfileStories((current) =>
+      current.map((story) => (story.id === activeStory.id ? { ...story, viewedByMe: true } : story))
+    );
+    void apiFetch<{ counted: boolean }>(`/api/stories/${activeStory.id}/view`, { method: "POST" }).catch(() => undefined);
+  }, [activeStory]);
 
   return (
     <section
@@ -255,11 +350,21 @@ export function PublicProfileClient({ id }: { id: string }) {
         </header>
 
         <section className="rounded-[30px] bg-white/86 p-5 text-center shadow-soft">
-          <img
-            src={avatar}
-            alt={user?.username ?? "Profile"}
-            className="mx-auto h-24 w-24 rounded-full border-[5px] border-white object-cover shadow-soft"
-          />
+          <button
+            type="button"
+            onClick={openProfileStories}
+            disabled={!profileStories.length}
+            className={`mx-auto grid h-[104px] w-[104px] place-items-center rounded-full shadow-soft transition active:scale-95 disabled:cursor-default disabled:active:scale-100 ${
+              hasUnviewedStories ? "bg-gradient-to-br from-paw-pink to-paw-lavender p-[5px]" : "bg-white p-[5px]"
+            }`}
+            aria-label={profileStories.length ? `View ${user?.name ?? "user"} stories` : "No stories available"}
+          >
+            <img
+              src={avatar}
+              alt={user?.username ?? "Profile"}
+              className="h-full w-full rounded-full border-[4px] border-white object-cover"
+            />
+          </button>
           <h2 className="mt-4 text-[26px] font-black leading-tight text-paw-ink">
             {user?.name ?? "Loading profile"} <PawPrint className="inline h-6 w-6 fill-paw-pink/30 text-paw-pink" />
           </h2>
@@ -415,6 +520,66 @@ export function PublicProfileClient({ id }: { id: string }) {
                 {activeConnectionPanel === "followers" ? "No followers yet." : "Not following anyone yet."}
               </p>
             )}
+          </div>
+        </div>
+      ) : null}
+      {activeStory ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-[#6d9ed0]/75 px-5 py-8 text-white backdrop-blur-sm">
+          <div className="relative h-[84vh] max-h-[690px] w-full max-w-[360px] overflow-hidden rounded-[24px] bg-[#052a47] shadow-[0_20px_48px_rgba(10,35,60,0.42)]">
+            <div className="absolute inset-0">
+              {activeStory.type === "VIDEO" ? (
+                <video src={activeStory.image} className="absolute inset-0 h-full w-full object-cover" autoPlay controls />
+              ) : (
+                <img src={activeStory.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-[#002c4f]/88 via-transparent to-black/78" />
+            </div>
+            <div className="absolute left-5 right-5 top-5 z-10 flex gap-1.5">
+              {profileStories.map((story, index) => (
+                <span key={story.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/55">
+                  <span className={`block h-full rounded-full bg-paw-pink ${index <= activeStoryProgressIndex ? "w-full" : "w-0"}`} />
+                </span>
+              ))}
+            </div>
+            <div className="absolute left-5 right-5 top-10 z-10 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-white to-paw-pink p-[3px] shadow-soft">
+                  <img src={avatar} alt={user?.name ?? "Story"} className="h-full w-full rounded-full object-cover" />
+                </span>
+                <div className="min-w-0 pt-1 text-left">
+                  <h2 className="flex min-w-0 items-center gap-1.5 text-xl font-black leading-none drop-shadow">
+                    <span className="truncate">{user?.name ?? "PawPal"}</span>
+                    <PawPrint className="h-6 w-6 shrink-0 fill-paw-pink text-paw-pink" />
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveStoryIndex(null)}
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/20 bg-white/18 text-white shadow-soft backdrop-blur-sm"
+                aria-label="Close story"
+              >
+                <X size={28} strokeWidth={3} />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => moveProfileStory(-1)}
+              className="absolute bottom-20 left-0 top-24 z-10 w-1/2"
+              aria-label="Previous story"
+            />
+            <button
+              type="button"
+              onClick={() => moveProfileStory(1)}
+              className="absolute bottom-20 right-0 top-24 z-10 w-1/2"
+              aria-label="Next story"
+            />
+            <div className="absolute bottom-6 left-5 right-5 z-10">
+              <p className="max-w-[280px] text-lg font-black leading-snug drop-shadow">
+                <span className="mr-1.5 align-top text-4xl leading-none text-paw-pink">“</span>
+                {activeStory.caption}
+              </p>
+            </div>
           </div>
         </div>
       ) : null}

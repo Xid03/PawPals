@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, TouchEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Camera, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Bookmark, Camera, Heart, ImageIcon, ImagePlus, MessageCircle, MoreHorizontal, PawPrint, Plus, Search, Send, Sparkles, Trash2, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StatusToast } from "@/components/StatusToast";
 import { apiFetch, requireSignedIn, type ApiPost, type PublicUser } from "@/lib/api-client";
@@ -60,6 +60,7 @@ type MemeFeedPost = {
   comments: number;
   likedByMe: boolean;
   savedByMe: boolean;
+  topic: string;
 };
 
 type MemeComment = {
@@ -68,6 +69,8 @@ type MemeComment = {
   createdAt?: string;
   author?: PublicUser;
 };
+
+type PostFeedMode = "all" | "following" | "trending";
 
 function isStoryActive(story: { expiresAt: string }) {
   return new Date(story.expiresAt).getTime() > Date.now();
@@ -93,7 +96,8 @@ function mapMemePost(post: ApiPost): MemeFeedPost {
     likes: post._count?.likes ?? 0,
     comments: post._count?.comments ?? 0,
     likedByMe: Boolean(post.likedByMe),
-    savedByMe: Boolean(post.savedByMe)
+    savedByMe: Boolean(post.savedByMe),
+    topic: post.topic
   };
 }
 
@@ -144,6 +148,10 @@ export default function StoriesPage() {
   const [commentLoadingPostId, setCommentLoadingPostId] = useState<string | null>(null);
   const [optionsPost, setOptionsPost] = useState<MemeFeedPost | null>(null);
   const [storySlideDirection, setStorySlideDirection] = useState<1 | -1>(1);
+  const [postFeedMode, setPostFeedMode] = useState<PostFeedMode>("all");
+  const [postSearch, setPostSearch] = useState("");
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
   useEffect(() => {
     async function loadStories() {
@@ -155,6 +163,8 @@ export default function StoriesPage() {
       } catch {
         userId = null;
         setCurrentUser(null);
+      } finally {
+        setHasCheckedAuth(true);
       }
 
       try {
@@ -172,10 +182,43 @@ export default function StoriesPage() {
   }, []);
 
   useEffect(() => {
-    apiFetch<ApiPost[]>("/api/posts?topic=MEMES&limit=20")
-      .then((posts) => setMemePosts(posts.map(mapMemePost)))
-      .catch(() => setMemePosts([]));
-  }, []);
+    if (!hasCheckedAuth) return;
+
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ limit: "20" });
+      const trimmedSearch = postSearch.trim();
+      if (trimmedSearch) params.set("q", trimmedSearch);
+
+      let path = `/api/posts?${params.toString()}`;
+      if (currentUser) {
+        params.set("mode", postFeedMode === "all" ? "for-you" : postFeedMode);
+        path = `/api/feed?${params.toString()}`;
+      } else if (postFeedMode === "following") {
+        setMemePosts([]);
+        setIsLoadingPosts(false);
+        setStatus("Please log in to see posts from people you follow.");
+        return;
+      }
+
+      setIsLoadingPosts(true);
+      apiFetch<ApiPost[]>(path)
+        .then((posts) => {
+          const mapped = posts.map(mapMemePost);
+          setMemePosts(
+            !currentUser && postFeedMode === "trending"
+              ? [...mapped].sort((a, b) => b.likes + b.comments - (a.likes + a.comments))
+              : mapped
+          );
+        })
+        .catch((error) => {
+          setMemePosts([]);
+          setStatus(error instanceof Error ? error.message : "Could not load posts.");
+        })
+        .finally(() => setIsLoadingPosts(false));
+    }, postSearch.trim() ? 250 : 0);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser, hasCheckedAuth, postFeedMode, postSearch]);
 
   const storyOwners = useMemo(() => {
     const owners = new Map<string, StoryItem>();
@@ -660,10 +703,64 @@ export default function StoriesPage() {
         </div>
       </div>
 
+      <div className="relative mx-4 mb-5 rounded-[26px] bg-white/74 p-4 shadow-[0_14px_36px_rgba(122,81,63,0.075)]">
+        <label className="mb-3 flex h-12 items-center gap-3 rounded-[18px] bg-white px-4 shadow-[0_8px_20px_rgba(122,81,63,0.06)]">
+          <Search size={20} className="shrink-0 text-paw-cocoa/70" />
+          <input
+            value={postSearch}
+            onChange={(event) => setPostSearch(event.target.value)}
+            placeholder="Search posts, users, or content..."
+            className="min-w-0 flex-1 bg-transparent text-sm font-black text-paw-ink outline-none placeholder:text-paw-cocoa/50"
+          />
+          {postSearch ? (
+            <button type="button" onClick={() => setPostSearch("")} className="text-paw-pink" aria-label="Clear post search">
+              <X size={18} />
+            </button>
+          ) : null}
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["all", "All"],
+            ["following", "Following"],
+            ["trending", "Trending"]
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                setPostFeedMode(value as PostFeedMode);
+                setStatus("");
+              }}
+              className={`h-10 rounded-2xl text-xs font-black transition active:scale-95 ${
+                postFeedMode === value
+                  ? "bg-paw-pink text-white shadow-[0_10px_22px_rgba(247,101,137,0.2)]"
+                  : "bg-white text-paw-cocoa shadow-[0_8px_18px_rgba(122,81,63,0.055)]"
+              }`}
+              aria-pressed={postFeedMode === value}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <StatusToast message={status} onDismiss={() => setStatus("")} />
       <div className="relative space-y-4 px-4">
+        {isLoadingPosts ? (
+          <div className="rounded-[28px] bg-white/78 p-5 shadow-[0_18px_45px_rgba(122,81,63,0.08)]">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-paw-blush" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 animate-pulse rounded-full bg-paw-blush" />
+                <div className="h-3 w-20 animate-pulse rounded-full bg-paw-blush/70" />
+              </div>
+            </div>
+            <div className="h-5 w-52 animate-pulse rounded-full bg-paw-blush/80" />
+            <div className="mt-4 h-48 animate-pulse rounded-[22px] bg-paw-blush/60" />
+          </div>
+        ) : null}
         {visibleMemePosts.map((post) => {
-          const isMeme = true;
+          const isMeme = post.topic === "MEMES";
           return (
           <article
             key={post.id}
@@ -752,12 +849,12 @@ export default function StoriesPage() {
           </article>
           );
         })}
-        {!visibleMemePosts.length ? (
+        {!isLoadingPosts && !visibleMemePosts.length ? (
           <div className="rounded-[28px] border-2 border-dashed border-paw-pink/25 bg-white/78 p-6 text-center shadow-[0_18px_45px_rgba(122,81,63,0.08)]">
             <PawPrint className="mx-auto h-9 w-9 fill-paw-pink/20 text-paw-pink" />
-            <h2 className="mt-3 text-lg font-black text-paw-ink">No memes yet.</h2>
+            <h2 className="mt-3 text-lg font-black text-paw-ink">No posts found.</h2>
             <p className="mx-auto mt-2 max-w-[260px] text-sm font-bold leading-relaxed text-paw-cocoa/70">
-              Uploaded memes from PawPals will appear here.
+              Try another search or switch to a different feed tab.
             </p>
           </div>
         ) : null}
